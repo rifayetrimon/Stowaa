@@ -8,7 +8,10 @@ from sqlalchemy.future import select
 from app.api.deps import get_current_user
 
 
-router = APIRouter()
+router = APIRouter(
+    prefix="/users",
+    tags=["users"], 
+)
 
 
 # User Regisration
@@ -39,16 +42,16 @@ async def register_user(user_in: UserCreate, db: AsyncSession = Depends(get_db))
 @router.post("/login", response_model=Token)
 async def login_user(user_in: UserLogin, db: AsyncSession = Depends(get_db)):
     result = await db.execute(select(User).where(User.email == user_in.email))
+    
     user = result.scalars().first()
 
     if not user or not verify_password(user_in.password, user.hashed_password):
         raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Incorrect email or password combination!",
+            status_code=status.HTTP_401_UNAUiTHORIZED,
+            detal="Incorrect email or password combination!",
         )
 
     token = create_access_token(data={"sub": user.email})
-
     return {"access_token": token, "token_type": "bearer"}
 
 
@@ -66,7 +69,7 @@ async def update_user_profile(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    for key, value in user_in.dict(exclude_unset=True).items():
+    for key, value in user_in.model_dump(exclude_unset=True).items():
         setattr(current_user, key, value)
     db.add(current_user)
     await db.commit()

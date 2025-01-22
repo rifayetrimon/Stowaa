@@ -27,7 +27,7 @@ class UserUpdate(BaseModel):
     is_admin: Optional[bool] = None
 
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 
 # Schema for api response (no password)
@@ -37,7 +37,7 @@ class UserResponse(UserBase):
     is_admin: bool
 
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 
 # Schema for reading user details (without sensitive information)
@@ -46,7 +46,7 @@ class UserRead(UserBase):
     is_active: bool
 
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 
 # schema for token
