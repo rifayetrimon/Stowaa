@@ -1,3 +1,4 @@
+from typing import Optional
 from pydantic import BaseModel, EmailStr, Field
 
 
@@ -17,6 +18,18 @@ class UserLogin(BaseModel):
     password: str
 
 
+# Schema for updating user details (optional fields)
+class UserUpdate(BaseModel):
+    name: Optional[str] = None
+    email: Optional[EmailStr] = None
+    password: Optional[str] = Field(None, min_length=8, max_length=20)
+    is_active: Optional[bool] = None
+    is_admin: Optional[bool] = None
+
+    class Config:
+        orm_mode = True
+
+
 # Schema for api response (no password)
 class UserResponse(UserBase):
     id: int
@@ -25,3 +38,18 @@ class UserResponse(UserBase):
 
     class Config:
         orm_mode = True
+
+
+# Schema for reading user details (without sensitive information)
+class UserRead(UserBase):
+    id: int
+    is_active: bool
+
+    class Config:
+        orm_mode = True
+
+
+# schema for token
+class Token(BaseModel):
+    access_token: str
+    token_type: str

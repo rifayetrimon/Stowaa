@@ -1,5 +1,5 @@
 #!/bin/sh
-'''exec' "/home/rifayet/RIfayet/full Satck/stowaa_fastAPI/venv/bin/python3" "$0" "$@"
+'''exec' "/home/rifayet/RIfayet/full Satck/Stowaa/venv/bin/python3" "$0" "$@"
 ' '''
 # -*- coding: utf-8 -*-
 import re
