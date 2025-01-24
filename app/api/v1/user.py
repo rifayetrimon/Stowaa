@@ -9,6 +9,7 @@ from app.api.deps import get_current_user
 from typing import Annotated
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 
+
 router = APIRouter(
     prefix="/users",
     tags=["users"], 
@@ -71,34 +72,17 @@ async def login_user(user_in: UserLogin, db: AsyncSession = Depends(get_db)):
     return {"access_token": token, "token_type": "bearer"}
 
 
-# # Get current user
-# @router.get("/profile", response_model=UserRead)
-# async def get_user_profile(current_user: User = Depends(get_current_user)):
-#     current_user_data = UserRead.model_validate(current_user)
-#     return current_user_data
-
-
+# get current user details
 @router.get("/profile", response_model=UserRead)
 async def get_user_profile(current_user: User = Depends(get_current_user)):
-    # Manually map SQLAlchemy instance to the Pydantic schema
-    current_user_data = UserRead(
-        id=current_user.id,
-        name=current_user.name,
-        email=current_user.email,
-        is_active=current_user.is_active,
-    )
+    current_user_data = UserRead.model_validate(current_user)
     return current_user_data
-
 
 
 
 # Update user profile
 @router.put("/profile-update", response_model=UserRead)
-async def update_user_profile(
-    user_in: UserUpdate, 
-    db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user)
-):
+async def update_user_profile(user_in: UserUpdate, db: AsyncSession = Depends(get_db),current_user: User = Depends(get_current_user)):
     for key, value in user_in.model_dump(exclude_unset=True).items():
         setattr(current_user, key, value)
     db.add(current_user)

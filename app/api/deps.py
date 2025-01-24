@@ -10,10 +10,7 @@ from sqlalchemy.future import select
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
 
 
-async def get_current_user(
-    db: AsyncSession = Depends(get_db), 
-    token: str = Depends(oauth2_scheme)
-) -> User:
+async def get_current_user(db: AsyncSession = Depends(get_db), token: str = Depends(oauth2_scheme)) -> User:
     try:
         # Decode the JWT token
         payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
