@@ -73,10 +73,18 @@ async def login_user(user_in: UserLogin, db: AsyncSession = Depends(get_db)):
 
 
 # get current user details
-@router.get("/profile", response_model=UserRead)
+@router.get("/profile", response_model=UserResponse)
 async def get_user_profile(current_user: User = Depends(get_current_user)):
     current_user_data = UserRead.model_validate(current_user)
-    return current_user_data
+    # return current_user_data
+
+    response = {
+        "status": "success", 
+        "message": "User profile retrieved successfully", 
+        "data": current_user_data  
+    }
+
+    return response
 
 
 

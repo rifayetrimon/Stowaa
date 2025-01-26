@@ -2,34 +2,37 @@ from pydantic import BaseModel
 from typing import List, Optional
 
 
-# schema for product base
+# Schema for product base
 class ProductBase(BaseModel):
-    name : str
-    description : Optional[str] = None  
-    price : float
-    stock_quantity : int
-    category_id : int
-    image_url : Optional[str] = None
+    name: str
+    description: Optional[str] = None
+    price: float
+    stock_quantity: int
+    category_id: int
+    image_url: Optional[str] = None
 
 
-# schema for product creation
+# Schema for product creation
 class ProductCreate(ProductBase):
-    pass
+    pass  # 'user_id' should not be included here, as it's typically derived from the authenticated user
 
 
-# schema for product update
+# Schema for product update
 class ProductUpdate(BaseModel):
-    name : Optional[str] = None
-    description : Optional[str] = None
-    price : Optional[float] = None
-    stock_quantity : Optional[int] = None
-    category_id : Optional[int] = None
-    image_url : Optional[str] = None
+    name: Optional[str] = None
+    description: Optional[str] = None
+    price: Optional[float] = None
+    stock_quantity: Optional[int] = None
+    category_id: Optional[int] = None
+    image_url: Optional[str] = None
 
 
-# schema for product response
+# Schema for product response
 class ProductResponse(ProductBase):
-    id : int
+    id: int
+    user_id: int 
+    category_name: Optional[str] = None  
 
     class Config:
         from_attributes = True
+

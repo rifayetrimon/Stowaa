@@ -1,4 +1,4 @@
-from typing import Optional
+from typing import Optional, Any
 from pydantic import BaseModel, EmailStr, Field
 
 
@@ -25,19 +25,18 @@ class UserUpdate(BaseModel):
     password: Optional[str] = Field(None, min_length=8, max_length=20)
     is_active: Optional[bool] = None
     is_admin: Optional[bool] = None
+    is_seller: Optional[bool] = None 
 
     class Config:
         from_attributes = True
 
 
-# Schema for api response (no password)
-class UserResponse(UserBase):
-    id: int
-    is_active: bool
-    is_admin: bool
+# Schema for response
+class UserResponse(BaseModel):
+    status: str
+    message: str
+    data: Any
 
-    class Config:
-        from_attributes = True
 
 
 # Schema for reading user details (without sensitive information)
