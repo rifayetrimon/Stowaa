@@ -9,7 +9,7 @@ class CategoryBase(BaseModel):
 
 # Schema for category creation
 class CategoryCreate(CategoryBase):
-    pass  # 'user_id' should not be included here, as it's typically derived from the authenticated user
+    pass  
 
 
 # Schema for category update
