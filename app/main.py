@@ -1,6 +1,6 @@
 from fastapi import FastAPI
 import uvicorn
-from app.api.v1 import user, product, category  
+from app.api.v1 import user, product, category, cart
 
 
 
@@ -11,6 +11,7 @@ app = FastAPI()
 app.include_router(user.router)
 app.include_router(product.router)
 app.include_router(category.router)
+app.include_router(cart.router)
 
 
 

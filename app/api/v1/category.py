@@ -45,3 +45,55 @@ async def get_all_categories(db: Session = Depends(deps.get_db), current_user: U
     result = await db.execute(select(Category).where(Category.user_id == current_user.id))
     categories = result.scalars().all()
     return categories
+
+
+# get category by id
+@router.get("/{category_id}", response_model=CategoryResponse)
+async def get_category(category_id: int, db: Session = Depends(deps.get_db), current_user: User = Depends(get_current_user)):
+    category = await db.execute(select(Category).where(Category.id == category_id and Category.user_id == current_user.id))
+    category = category.scalar()
+    if not category:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Category not found")
+    return category
+
+
+# update category
+@router.put("/{category_id}", response_model=CategoryResponse)
+async def update_category(category_id: int, category_in: CategoryUpdate, db: Session = Depends(deps.get_db), current_user: User = Depends(get_current_user)):
+    category = await db.execute(select(Category).where(Category.id == category_id and Category.user_id == current_user.id))
+    category = category.scalar()
+    if not category:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Category not found")
+    
+    for key, value in category_in.model_dump().items():
+        setattr(category, key, value)
+    
+    try:
+        await db.commit()
+        await db.refresh(category)
+    except Exception as e:
+        await db.rollback()
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+    
+    return category
+
+
+# delete category
+@router.delete("/{category_id}")
+async def delete_category(category_id: int, db: Session = Depends(deps.get_db), current_user: User = Depends(get_current_user)):
+    
+    try:
+        result = await db.execute(select(Category).where((Category.id == category_id) & (Category.user_id == current_user.id)))
+
+        category = result.scalar_one_or_none()
+
+        if not category:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Category not found")
+        
+        await db.delete(category)
+        await db.commit()
+        return {"message": "Category deleted successfully"}
+    
+    except Exception as e:
+        await db.rollback()
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))

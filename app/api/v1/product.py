@@ -42,3 +42,53 @@ async def get_all_products(db: Session = Depends(get_db), current_user: User = D
     result = await db.execute(select(Product).where(Product.user_id == current_user.id))
     products = result.scalars().all()
     return products     
+
+
+
+# product details 
+@router.get("/{product_id}", response_model=ProductResponse)
+async def get_product(product_id: int, db: Session = Depends(get_db), current_user: User = Depends(deps.get_current_user)):
+    product = await db.execute(select(Product).where(Product.id == product_id and Product.user_id == current_user.id))
+    product = product.scalar()
+    if not product:
+        raise HTTPException(status_code=404, detail="Product not found")
+    return product
+
+
+
+# update product 
+@router.put("/{product_id}", response_model=ProductUpdate)
+async def update_product(product_id: int, product_in: ProductUpdate, db: Session = Depends(get_db), current_user: User = Depends(deps.get_current_user)):
+    product = await db.execute(select(Product).where(Product.id == product_id and Product.user_id == current_user.id))
+    product = product.scalar()
+    if not product:
+        raise HTTPException(status_code=404, detail="Product not found")
+
+    try:
+        for key, value in product_in.model_dump().items():
+            setattr(product, key, value)
+        await db.commit()
+        await db.refresh(product)
+    except Exception as e:
+        await db.rollback()
+        raise HTTPException(status_code=400, detail=str(e))
+
+    return product
+
+
+# delete product
+@router.delete("/{product_id}")
+async def delete_product(product_id: int, db: Session = Depends(get_db), current_user: User = Depends(deps.get_current_user)):
+    product = await db.execute(select(Product).where(Product.id == product_id and Product.user_id == current_user.id))
+    product = product.scalar()
+    if not product:
+        raise HTTPException(status_code=404, detail="Product not found")
+
+    try:
+        db.delete(product)
+        await db.commit()
+    except Exception as e:
+        await db.rollback()
+        raise HTTPException(status_code=400, detail=str(e))
+
+    return {"message": "Product deleted successfully!"}

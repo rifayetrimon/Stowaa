@@ -6,7 +6,7 @@ class Settings(BaseSettings):
     DEBUG: bool = True
     SECRET_KEY: str
     DATABASE_URL: str
-    ACCESS_TOKEN_EXPIRE_MINUTES: int = 60
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = 2
     ALGORITHM: str = "HS256"
 
     class Config:

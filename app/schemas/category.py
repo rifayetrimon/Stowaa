@@ -1,28 +1,22 @@
 from pydantic import BaseModel
 from typing import Optional
+from datetime import datetime
 
-
-# Schema for category base
 class CategoryBase(BaseModel):
     name: str
+    description: Optional[str] = None
+    parent_id: Optional[int] = None
 
-
-# Schema for category creation
 class CategoryCreate(CategoryBase):
-    pass  
+    pass
 
+class CategoryUpdate(CategoryBase):
+    pass
 
-# Schema for category update
-class CategoryUpdate(BaseModel):
-    name: Optional[str] = None  # Made optional for flexibility during updates
-
-
-# Schema for category response
 class CategoryResponse(CategoryBase):
     id: int
-    user_id: int  # Show the user who created the category
-    name: str  # Explicitly added category_name in the response
+    created_at: datetime
+    updated_at: Optional[datetime]
 
     class Config:
         from_attributes = True
-

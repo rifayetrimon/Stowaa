@@ -1,24 +1,36 @@
 import asyncio
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession
-from app.db.session import engine
+from app.db.session import engine, async_session
 from app.db.base_class import Base
-# from app.models.dummy import Dummy
 
-
+# all models import here
+from app.models.user import User
+from app.models.wishlist import Wishlist
+from app.models.address import Address
+from app.models.product import Product
+from app.models.category import Category
+from app.models.cart import Cart
+from app.models.order import Order
+from app.models.review import Review
 
 async def init_db():
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.drop_all)
-        await conn.run_sync(Base.metadata.create_all)
+    try:
+        async with engine.begin() as conn:
+            # Create all tables
+            await conn.run_sync(Base.metadata.create_all)
+            print("All tables created successfully")
+    except Exception as e:
+        print(f"An error occurred during database initialization: {e}")
+        raise
+    finally:
+        await engine.dispose()
+        print("Database connection closed")
 
-
-    # for dummy 
-    # async with AsyncSession(engine) as session:
-    #     dummy_data = Dummy(name="Test Entry")
-    #     session.add(dummy_data)
-    #     await session.commit()
-
-    # print("Database initialized and dummy data inserted.")
+def init():
+    """Wrapper function to run the async init_db function"""
+    asyncio.run(init_db())
 
 if __name__ == "__main__":
-    asyncio.run(init_db())
+    print("Starting database initialization...")
+    init()
+    print("Database initialization completed")
