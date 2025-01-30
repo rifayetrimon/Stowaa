@@ -10,7 +10,6 @@ class UserRole(str, Enum):
     SELLER = "seller"
     USER = "user"
     
-    
 
 # shared_properties for User
 class UserBase(BaseModel):
@@ -36,14 +35,6 @@ class UserUpdate(BaseModel):
 
     class Config:
         from_attributes = True
-
-
-# Schema for response
-class UserResponse(BaseModel):
-    id : int
-    role : UserRole
-    is_active : bool
-    addresses : List[Any]
 
 
 # Schema for user address
@@ -96,3 +87,10 @@ class UserRead(UserBase):
 class Token(BaseModel):
     access_token: str
     token_type: str
+
+
+# Schema for response
+class UserResponse(BaseModel):
+    status: str
+    message: str
+    data: UserRead

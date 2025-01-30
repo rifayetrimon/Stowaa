@@ -16,27 +16,43 @@ router = APIRouter(
 )
 
 
-# User Regisration
+         
+# User Registration
 @router.post("/register", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
-async def register_user(user_in: UserCreate, db: AsyncSession = Depends(get_db)):
-    existing_user = await db.execute(
-        User.__table__.select().where(User.email == user_in.email)
+async def register_user(new_user: UserCreate, db: AsyncSession = Depends(get_db)):
+
+    result_email = await db.execute(select(User).where(User.email == new_user.email)) # check if email already exists
+    existing_user_email = result_email.scalar_one_or_none()
+
+    if existing_user_email:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Email already registered!")
+
+    result_phone_number = await db.execute(select(User).where(User.phone_number == new_user.phone_number)) # check if phone number already exists
+    existing_user_phone = result_phone_number.scalar_one_or_none()
+
+    if existing_user_phone:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Phone number already registered!")
+
+    hashed_password = hash_password(new_user.password) # hash password
+
+    new_user_model = User(
+        email=new_user.email,
+        hashed_password=hashed_password,
+        name=new_user.name,
+        phone_number=new_user.phone_number
     )
 
-    if existing_user.scalar():
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="User already registered by this email!")
-    
-    new_hased_password = hash_password(user_in.password)    
-
-    new_user = User(
-        name=user_in.name,
-        email=user_in.email,
-        hashed_password=new_hased_password
-    )
-
-    db.add(new_user)
+    db.add(new_user_model)
     await db.commit()
-    return new_user
+    await db.refresh(new_user_model)
+
+    response = UserResponse(
+        status = "success",
+        message = "User registered successfully",
+        data = new_user
+    )
+
+    return response
 
 
 # authenticate user 
@@ -47,7 +63,7 @@ async def authenticate_user(email: str, password: str, db: AsyncSession):
     if not user or not verify_password(password, user.hashed_password):
         return False
 
-    return user
+    return user 
 
 
 # token for authenticate user 
