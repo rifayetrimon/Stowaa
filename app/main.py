@@ -9,8 +9,8 @@ app = FastAPI()
 
 # connect all router here 
 app.include_router(user.router)
-app.include_router(product.router)
 app.include_router(category.router)
+app.include_router(product.router)
 app.include_router(cart.router)
 
 

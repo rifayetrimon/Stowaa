@@ -32,6 +32,7 @@ class UserUpdate(BaseModel):
     is_active: Optional[bool] = None
     is_admin: Optional[bool] = None
     is_seller: Optional[bool] = None 
+    role: Optional[UserRole] = None
 
     class Config:
         from_attributes = True
@@ -78,6 +79,7 @@ class UserLogin(BaseModel):
 class UserRead(UserBase):
     id: int
     is_active: bool
+    role: str
 
     class Config:
         from_attributes = True

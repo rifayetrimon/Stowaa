@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from app.api import deps
 from app.db.session import get_db
-from app.schemas.product import ProductBase, ProductCreate, ProductUpdate, ProductResponse
+from app.schemas.product import ProductCreate, ProductUpdate, ProductResponse
 from app.models.product import Product
 from app.models.user import User
 from sqlalchemy.future import select
@@ -16,7 +16,7 @@ router = APIRouter(
 
 
 # create product endpoint
-@router.post("/create", response_model=ProductCreate)
+@router.post("/create", response_model=ProductResponse)
 async def create_product(product_in: ProductCreate, db: Session = Depends(get_db), current_user: User = Depends(deps.get_current_user)):
     if not current_user:
         raise HTTPException(status_code=401, detail="You are not authenticated!")
@@ -35,6 +35,8 @@ async def create_product(product_in: ProductCreate, db: Session = Depends(get_db
         raise HTTPException(status_code=400, detail=str(e))
 
     return new_product
+
+
 
 # get all products endpoint
 @router.get("/", response_model=list[ProductResponse])
