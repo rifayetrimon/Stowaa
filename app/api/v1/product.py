@@ -1,11 +1,13 @@
-from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy.orm import Session
+from sqlite3 import IntegrityError
+from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy.ext.asyncio import AsyncSession
 from app.api import deps
 from app.db.session import get_db
 from app.schemas.product import ProductCreate, ProductUpdate, ProductResponse
 from app.models.product import Product
 from app.models.user import User
 from sqlalchemy.future import select
+
 
 
 router = APIRouter(
@@ -16,13 +18,16 @@ router = APIRouter(
 
 
 # create product endpoint
-@router.post("/create", response_model=ProductResponse)
-async def create_product(product_in: ProductCreate, db: Session = Depends(get_db), current_user: User = Depends(deps.get_current_user)):
+@router.post("/", response_model=ProductResponse)
+async def create_product(product_in: ProductCreate, db: AsyncSession = Depends(get_db), current_user: User = Depends(deps.get_current_user)):
+    
     if not current_user:
-        raise HTTPException(status_code=401, detail="You are not authenticated!")
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="You are not authenticated!")
+    elif current_user.role.value not in ["admin", "seller"]:  
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="You are not authorized to create a product")
     
     new_product = Product(
-        **product_in.model_dump(),
+        **product_in.model_dump(exclude_unset=True),
         user_id=current_user.id
     )
 
@@ -30,67 +35,73 @@ async def create_product(product_in: ProductCreate, db: Session = Depends(get_db
         db.add(new_product)
         await db.commit()
         await db.refresh(new_product)
-    except Exception as e:
+    except IntegrityError as e:
         await db.rollback()
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+    
+    response = {
+        **new_product.__dict__,
+        "status" : "success",
+        "message" : "Product created successfully"
+    }
 
-    return new_product
-
-
-
-# get all products endpoint
-@router.get("/", response_model=list[ProductResponse])
-async def get_all_products(db: Session = Depends(get_db), current_user: User = Depends(deps.get_current_user)):
-    result = await db.execute(select(Product).where(Product.user_id == current_user.id))
-    products = result.scalars().all()
-    return products     
+    return ProductResponse(**response)
 
 
 
-# product details 
-@router.get("/{product_id}", response_model=ProductResponse)
-async def get_product(product_id: int, db: Session = Depends(get_db), current_user: User = Depends(deps.get_current_user)):
-    product = await db.execute(select(Product).where(Product.id == product_id and Product.user_id == current_user.id))
-    product = product.scalar()
-    if not product:
-        raise HTTPException(status_code=404, detail="Product not found")
-    return product
+# # get all products endpoint
+# @router.get("/", response_model=list[ProductResponse])
+# async def get_all_products(db: Session = Depends(get_db), current_user: User = Depends(deps.get_current_user)):
+#     result = await db.execute(select(Product).where(Product.user_id == current_user.id))
+#     products = result.scalars().all()
+#     return products     
 
 
 
-# update product 
-@router.put("/{product_id}", response_model=ProductUpdate)
-async def update_product(product_id: int, product_in: ProductUpdate, db: Session = Depends(get_db), current_user: User = Depends(deps.get_current_user)):
-    product = await db.execute(select(Product).where(Product.id == product_id and Product.user_id == current_user.id))
-    product = product.scalar()
-    if not product:
-        raise HTTPException(status_code=404, detail="Product not found")
-
-    try:
-        for key, value in product_in.model_dump().items():
-            setattr(product, key, value)
-        await db.commit()
-        await db.refresh(product)
-    except Exception as e:
-        await db.rollback()
-        raise HTTPException(status_code=400, detail=str(e))
-
-    return product
+# # product details 
+# @router.get("/{product_id}", response_model=ProductResponse)
+# async def get_product(product_id: int, db: Session = Depends(get_db), current_user: User = Depends(deps.get_current_user)):
+#     product = await db.execute(select(Product).where(Product.id == product_id and Product.user_id == current_user.id))
+#     product = product.scalar()
+#     if not product:
+#         raise HTTPException(status_code=404, detail="Product not found")
+#     return product
 
 
-# delete product
-@router.delete("/{product_id}")
-async def delete_product(product_id: int, db: Session = Depends(get_db), current_user: User = Depends(deps.get_current_user)):
-    product = await db.execute(select(Product).where(Product.id == product_id and Product.user_id == current_user.id))
-    product = product.scalar()
-    if not product:
-        raise HTTPException(status_code=404, detail="Product not found")
 
-    try:
-        db.delete(product)
-        await db.commit()
-    except Exception as e:
-        await db.rollback()
-        raise HTTPException(status_code=400, detail=str(e))
+# # update product 
+# @router.put("/{product_id}", response_model=ProductUpdate)
+# async def update_product(product_id: int, product_in: ProductUpdate, db: Session = Depends(get_db), current_user: User = Depends(deps.get_current_user)):
+#     product = await db.execute(select(Product).where(Product.id == product_id and Product.user_id == current_user.id))
+#     product = product.scalar()
+#     if not product:
+#         raise HTTPException(status_code=404, detail="Product not found")
 
-    return {"message": "Product deleted successfully!"}
+#     try:
+#         for key, value in product_in.model_dump().items():
+#             setattr(product, key, value)
+#         await db.commit()
+#         await db.refresh(product)
+#     except Exception as e:
+#         await db.rollback()
+#         raise HTTPException(status_code=400, detail=str(e))
+
+#     return product
+
+
+# # delete product
+# @router.delete("/{product_id}")
+# async def delete_product(product_id: int, db: Session = Depends(get_db), current_user: User = Depends(deps.get_current_user)):
+#     product = await db.execute(select(Product).where(Product.id == product_id and Product.user_id == current_user.id))
+#     product = product.scalar()
+#     if not product:
+#         raise HTTPException(status_code=404, detail="Product not found")
+
+#     try:
+#         db.delete(product)
+#         await db.commit()
+#     except Exception as e:
+#         await db.rollback()
+#         raise HTTPException(status_code=400, detail=str(e))
+
+#     return {"message": "Product deleted successfully!"}

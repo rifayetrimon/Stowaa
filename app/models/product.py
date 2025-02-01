@@ -13,6 +13,9 @@ class Product(Base):
     sku = Column(String(50), unique=True)
     image_url = Column(String(255))
     is_active = Column(Boolean, default=True)
+    user_id = Column(Integer, ForeignKey("users.id"))
+
+
 
     # Relationships
     category = relationship("Category", back_populates="products")
