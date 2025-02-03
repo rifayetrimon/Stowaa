@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, ForeignKey, Float, Text, Boolean
+from sqlalchemy import Column, Integer, String, ForeignKey, Float, Text, Boolean, TIMESTAMP, func
 from sqlalchemy.orm import relationship
 from app.models.base import Base
 
@@ -14,7 +14,7 @@ class Product(Base):
     image_url = Column(String(255))
     is_active = Column(Boolean, default=True)
     user_id = Column(Integer, ForeignKey("users.id"))
-
+    updated_at = Column(TIMESTAMP(timezone=True), default=func.now(), onupdate=func.now())
 
 
     # Relationships

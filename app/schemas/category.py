@@ -13,15 +13,25 @@ class CategoryCreate(CategoryBase):
 class CategoryUpdate(CategoryBase):
     pass
 
-class CategoryResponse(CategoryBase):
-    status: str
-    message: str    
+class CategoryResponse(CategoryBase):   
     id: int
+    created_at: datetime
 
     class Config:
         from_attributes = True
+
+class CategoryCreateResponse(BaseModel):
+    status: str
+    message: str
+    data: CategoryResponse  
 
 
 class CategoryDeleteResponse(BaseModel):
     status: str
     message: str
+
+class CategoryListResponse(BaseModel):
+    status: str
+    message: str
+    count: int
+    data: list[CategoryResponse]

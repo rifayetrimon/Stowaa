@@ -10,6 +10,7 @@ class CartBase(BaseModel):
 class CartCreate(CartBase):
     pass  
 
+
 # schema for cartUpdate
 class CartUpdate(BaseModel):
     quantity: int

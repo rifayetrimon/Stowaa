@@ -2,7 +2,7 @@ from operator import and_
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from app.api import deps
-from app.schemas.category import CategoryCreate, CategoryResponse, CategoryUpdate, CategoryDeleteResponse
+from app.schemas.category import CategoryCreate, CategoryResponse, CategoryUpdate, CategoryListResponse, CategoryCreateResponse
 from app.db.session import get_db
 from app.models.category import Category
 from app.models.user import User
@@ -19,7 +19,7 @@ router = APIRouter(
 
 
 # create category
-@router.post("/create", response_model=CategoryResponse)
+@router.post("/create", response_model=CategoryCreateResponse)
 async def create_category(create_category: CategoryCreate, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     if not current_user:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="You are not authenticated!")
@@ -46,18 +46,19 @@ async def create_category(create_category: CategoryCreate, db: Session = Depends
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
 
     response = {
-        **new_category.__dict__,
         "status" : "success",
-        "message" : "Category created successfully"
+        "message" : "Product created successfully",
+        "data" : CategoryResponse.model_validate(new_category)
     }
 
-    return CategoryResponse(**response)
+    return response
+
 
 
 
 
 # get all categories
-@router.get("/", response_model=list[CategoryResponse])
+@router.get("/", response_model=CategoryListResponse)
 async def get_all_categories(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     if not current_user:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="You are not authenticated!")
@@ -66,13 +67,12 @@ async def get_all_categories(db: Session = Depends(get_db), current_user: User =
     result = await db.execute(select(Category).where(Category.user_id == current_user.id))
     categories = result.scalars().all()
 
-    return [
-        CategoryResponse(
-            **category.__dict__,
-            status="success",
-            message="Categories retrieved successfully"
-        ) for category in categories
-    ]
+    return {
+        "status": "success",
+        "message": "Categories retrieved successfully",
+        "count": len(categories),
+        "data": [CategoryResponse.model_validate(category) for category in categories]
+    }
 
 
 
