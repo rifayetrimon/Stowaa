@@ -7,7 +7,7 @@ class CartBase(BaseModel):
 
 
 # Schema for cart creation
-class CartCreate(CartBase):
+class CartCreate(CartBase): 
     pass  
 
 
@@ -20,6 +20,25 @@ class CartUpdate(BaseModel):
 class CartResponse(CartBase):
     id: int
     user_id: int
+
+    class Config:
+        from_attributes = True
+
+
+class CardCreateResponse(BaseModel):
+    status: str
+    message: str
+    data: CartResponse
+
+    class Config:
+        from_attributes = True
+
+
+
+class CartListResponse(BaseModel):
+    status: str
+    message: str
+    data: list[CartResponse]
 
     class Config:
         from_attributes = True

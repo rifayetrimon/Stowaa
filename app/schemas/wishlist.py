@@ -9,15 +9,10 @@ class WishlistItemBase(BaseModel):
 class WishlistItemCreate(WishlistItemBase):
     pass
 
-class WishlistItemUpdate(WishlistItemBase):
-    pass
-
 class WishlistItemResponse(BaseModel):
     id: int
-    user_id: int
+    user_id: Optional[int] = None
     product: ProductResponse
-    created_at: datetime
-    updated_at: Optional[datetime]
 
     class Config:
         from_attributes = True
@@ -25,6 +20,15 @@ class WishlistItemResponse(BaseModel):
 class WishlistResponse(BaseModel):
     items: List[WishlistItemResponse]
     total_items: int
+
+    class Config:
+        from_attributes = True
+
+
+class WishlistCreateResponse(BaseModel):
+    status: str
+    message: str
+    data: WishlistItemResponse
 
     class Config:
         from_attributes = True
