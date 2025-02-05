@@ -37,12 +37,13 @@ async def create_cart(cart: CartCreate, db: AsyncSession = Depends(get_db), curr
 @router.get("/", response_model=CartListResponse)
 async def get_cart(db: AsyncSession = Depends(get_db), current_user: User = Depends(deps.get_current_user)):
     result = await db.execute(select(Cart).where(Cart.user_id == current_user.id))
-    cart = result.scalars().all()
+    carts = result.scalars().all()
 
     return {
         "status": "success",
         "message": "Cart retrieved successfully",
-        "data": [CartResponse.model_validate(item) for item in cart]
+        "count": len(carts),
+        "data": [CartResponse.model_validate(item) for item in carts]
     }
 
 

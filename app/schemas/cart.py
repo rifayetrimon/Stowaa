@@ -38,7 +38,5 @@ class CardCreateResponse(BaseModel):
 class CartListResponse(BaseModel):
     status: str
     message: str
+    count: int
     data: list[CartResponse]
-
-    class Config:
-        from_attributes = True
