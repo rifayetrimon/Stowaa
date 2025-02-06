@@ -67,6 +67,23 @@ class AddressResponse(AddressBase):
         from_attributes = True
 
 
+class AddressCreateResponse(BaseModel):
+    status: str
+    message: str
+    data: AddressResponse
+
+    class Config:
+        from_attributes = True
+
+
+class AddressUpdateResponse(BaseModel):
+    status: str
+    message: str
+    data: AddressResponse
+
+    class Config:
+        from_attributes = True
+        
 
 # Schema user login
 class UserLogin(BaseModel):
