@@ -73,7 +73,20 @@ class AddressCreateResponse(BaseModel):
     data: AddressResponse
 
     class Config:
-        from_attributes = True
+        from_attributes = True     
+
+
+# Schema for updating address
+class AddressUpdate(BaseModel):
+    street_address: Optional[str] = None
+    city: Optional[str] = None
+    state: Optional[str] = None
+    country: Optional[str] = None
+    postal_code: Optional[str] = None
+    is_default: Optional[bool] = None
+
+    class Config:
+        from_attributes = True                                                                                         
 
 
 class AddressUpdateResponse(BaseModel):
@@ -83,7 +96,7 @@ class AddressUpdateResponse(BaseModel):
 
     class Config:
         from_attributes = True
-        
+
 
 # Schema user login
 class UserLogin(BaseModel):
