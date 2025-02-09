@@ -31,3 +31,25 @@ class AllSellersResponse(BaseModel):
 
 class ChangeUserRoleRequest(BaseModel):
     role: UserRole
+
+
+class UserResponse(BaseModel):
+    id: int
+    email: str
+    name: str
+    role: str
+    created_at: datetime
+    updated_at: Optional[datetime]
+
+    class Config:
+        from_attributes = True
+
+
+class AllUserResponse(BaseModel):
+    status: str
+    message: str
+    count: int
+    data: List[UserResponse]
+
+    class Config:
+        from_attributes = True

@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.user import User
-from app.schemas.admin import AllSellersResponse, SellerResponse, ChangeUserRoleRequest
+from app.schemas.admin import AllSellersResponse, SellerResponse, ChangeUserRoleRequest, AllUserResponse, UserResponse
 from app.db.session import get_db
 from sqlalchemy.future import select
 from app.models.user import User, UserRole
@@ -33,18 +33,25 @@ async def get_sellers(db: AsyncSession = Depends(get_db)):
 
 
 
-# # get all customers
-# @router.get("/customers")
-# async def get_customers(db: AsyncSession = Depends(get_db)):
-#     result = await db.execute(select(User).where(User.role == "customer"))
-#     customers = result.scalars().all()
+# get all user
+@router.get("/allusers", response_model=AllUserResponse)
+async def get_users(db: AsyncSession = Depends(get_db),current_user: User = Depends(deps.get_current_user)):
+    if current_user.role != UserRole.ADMIN:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN, 
+            detail="Only admins can view all users"
+        )
 
-#     return {
-#         "status": "success",
-#         "message": "Customers retrieved successfully",
-#         "count": len(customers),
-#         "data": [UserResponse.model_validate(item) for item in customers]
-#     }
+    result = await db.execute(select(User).where(User.role != UserRole.ADMIN))
+    users = result.scalars().all()
+
+    return {
+        "status": "success",
+        "message": "Users retrieved successfully",
+        "count": len(users),
+        "data": [UserResponse.model_validate(item) for item in users]
+    }
+
 
 
 
@@ -79,5 +86,6 @@ async def change_user_role(user_id: int,request: ChangeUserRoleRequest,db: Async
     await db.refresh(user)
 
     return {"status": "success", "message": f"User role updated to {user.role}"}
+
 
 
