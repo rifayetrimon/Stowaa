@@ -34,15 +34,33 @@ class OrderCreate(BaseModel):
     shipping_address_id: int
     items: List[OrderItemCreate]
 
-class OrderResponse(BaseModel):
+
+class OrderFullResponse(BaseModel):
     id: int
     user_id: int
-    status: OrderStatus
-    total_amount: float
     shipping_address: AddressResponse
+    total_amount: float
+    status: OrderStatus
     order_items: List[OrderItemResponse]
     created_at: datetime
     updated_at: Optional[datetime]
 
     class Config:
         from_attributes = True
+
+
+
+class OrderResponse(BaseModel):
+    status: str
+    message: str
+    data: OrderFullResponse
+
+    class Config:
+        from_attributes = True
+
+
+class OrderList(BaseModel):
+    status: str
+    message: str
+    count: int
+    data: List[OrderFullResponse]

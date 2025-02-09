@@ -1,8 +1,8 @@
-"""create order table
+"""add timestamps to orders table
 
-Revision ID: 639f988b778e
-Revises: 00ce2dcb5784
-Create Date: 2025-02-05 12:15:29.674793
+Revision ID: 619e12d5fc94
+Revises: 639f988b778e
+Create Date: 2025-02-08 12:16:00.648104
 
 """
 from typing import Sequence, Union
@@ -13,11 +13,10 @@ from sqlalchemy.dialects import postgresql
 from sqlalchemy.dialects.postgresql import ENUM
 
 # revision identifiers, used by Alembic.
-revision: str = '639f988b778e'
-down_revision: Union[str, None] = '00ce2dcb5784'
+revision: str = '619e12d5fc94'
+down_revision: Union[str, None] = '639f988b778e'
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
-
 
 order_status_enum = ENUM('PENDING', 'SHIPPED', 'DELIVERED', 'CANCELLED', name='orderstatus', create_type=False)
 

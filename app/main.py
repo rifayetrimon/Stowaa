@@ -1,6 +1,6 @@
 from fastapi import FastAPI
 import uvicorn
-from app.api.v1 import user, product, category, cart, wishlist, order, address
+from app.api.v1 import user, product, category, cart, wishlist, order, address, review, admin
 
 
 
@@ -15,6 +15,8 @@ app.include_router(cart.router)
 app.include_router(wishlist.router)
 app.include_router(order.router)
 app.include_router(address.router)
+app.include_router(review.router)
+app.include_router(admin.router)
 
 
 

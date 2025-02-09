@@ -2,6 +2,8 @@ from sqlalchemy import Column, Integer, Float, ForeignKey, Enum
 from sqlalchemy.orm import relationship
 import enum
 from app.models.base import Base
+from sqlalchemy.sql import func
+from sqlalchemy import DateTime
 
 class OrderStatus(str, enum.Enum):
     PENDING = "pending"
@@ -17,11 +19,14 @@ class Order(Base):
     status = Column(Enum(OrderStatus), default=OrderStatus.PENDING)
     total_amount = Column(Float)
     shipping_address_id = Column(Integer, ForeignKey("addresses.id"))
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now(), server_default=func.now())
 
     # Relationships
     user = relationship("User", back_populates="orders")
     order_items = relationship("OrderItem", back_populates="order")
     shipping_address = relationship("Address")
+
 
 class OrderItem(Base):
     __tablename__ = "order_items"
