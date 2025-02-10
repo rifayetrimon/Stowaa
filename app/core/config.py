@@ -8,6 +8,12 @@ class Settings(BaseSettings):
     DATABASE_URL: str
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 2
     ALGORITHM: str = "HS256"
+    
+    SMTP_SERVER: str
+    SMTP_PORT: int
+    SMTP_USERNAME: str
+    SMTP_PASSWORD: str
+    EMAIL_FROM: str 
 
     class Config:
         env_file = ".env"

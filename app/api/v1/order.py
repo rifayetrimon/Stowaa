@@ -5,10 +5,11 @@ from app.models.order import Order, OrderItem
 from app.models.user import User
 from app.models.product import Product
 from app.models.address import Address
-from app.schemas.order import OrderCreate, OrderResponse, OrderFullResponse, OrderList
+from app.schemas.order import OrderCreate, OrderResponse, OrderFullResponse, OrderList, OrderUpdateSchema
 from app.api import deps
 from sqlalchemy.future import select
 from sqlalchemy.orm import selectinload
+from app.services.notification import NotificationService
 
 
 
@@ -178,3 +179,39 @@ async def cancel_order(order_id: int, db: AsyncSession = Depends(get_db), curren
         "status": "success",
         "message": "Order cancelled"
     }
+
+
+# update order status
+@router.put("/{order_id}/status")
+async def update_order_status(order_id: int,order_update: OrderUpdateSchema,db: AsyncSession = Depends(get_db),current_user: User = Depends(deps.get_current_user)):
+    """
+    Admin updates order status and sends notification to the user.
+    """
+    # Ensure user is admin
+    if current_user.role != "admin":
+        raise HTTPException(status_code=403, detail="Not authorized")
+
+    # Get order details with user relationship loaded
+    result = await db.execute(
+        select(Order)
+        .where(Order.id == order_id)
+        .options(selectinload(Order.user))  # Load the user relationship
+    )
+    order = result.scalars().first()
+
+    if not order:
+        raise HTTPException(status_code=404, detail="Order not found")
+
+    # Update order status
+    order.status = order_update.status
+    await db.commit()
+
+    # Notify user
+    NotificationService.send_notification(
+        user_email=order.user.email,  # Now accessible since user is loaded
+        subject="Order Status Update",
+        message=f"Your order #{order.id} status has been updated to {order.status}.",
+        method="email"
+    )
+
+    return {"status": "success", "message": "Order status updated and user notified"}

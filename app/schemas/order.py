@@ -64,3 +64,8 @@ class OrderList(BaseModel):
     message: str
     count: int
     data: List[OrderFullResponse]
+
+
+
+class OrderUpdateSchema(BaseModel):
+    status: str

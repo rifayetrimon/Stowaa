@@ -126,3 +126,9 @@ class UserResponse(BaseModel):
     status: str
     message: str
     data: UserRead
+
+
+
+class PromoNotificationSchema(BaseModel):
+    subject: str
+    message: str

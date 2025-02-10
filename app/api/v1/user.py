@@ -8,6 +8,10 @@ from sqlalchemy.future import select
 from app.api.deps import get_current_user
 from typing import Annotated
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
+from app.services.notification import NotificationService
+from app.schemas.user import PromoNotificationSchema
+
+
 
 
 router = APIRouter(
@@ -49,7 +53,7 @@ async def register_user(new_user: UserCreate, db: AsyncSession = Depends(get_db)
     response = UserResponse(
         status = "success",
         message = "User registered successfully",
-        data = new_user
+        data = UserRead.model_validate(new_user_model)
     )
 
     return response
@@ -112,3 +116,34 @@ async def update_user_profile(user_in: UserUpdate, db: AsyncSession = Depends(ge
     db.add(current_user)
     await db.commit()
     return current_user
+
+
+
+
+# Send promotional notifications
+@router.post("/send-promo")
+async def send_promo_notification(promo: PromoNotificationSchema,db: AsyncSession = Depends(get_db),current_user: User = Depends(get_current_user)):
+    """
+    Admin can send promotional notifications to all users.
+    """
+    # Ensure user is admin
+    if current_user.role != "admin":
+        raise HTTPException(status_code=403, detail="Not authorized")
+
+    # Get all users
+    result = await db.execute(select(User))
+    users = result.scalars().all()
+
+    if not users:
+        raise HTTPException(status_code=404, detail="No users found")
+
+    # Send notification to each user
+    for user in users:
+        NotificationService.send_notification(
+            user_email=user.email,
+            subject=promo.subject,
+            message=promo.message,
+            method="email"
+        )
+
+    return {"status": "success", "message": "Promotional notifications sent"}
