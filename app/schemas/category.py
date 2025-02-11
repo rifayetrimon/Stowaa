@@ -35,3 +35,9 @@ class CategoryListResponse(BaseModel):
     message: str
     count: int
     data: list[CategoryResponse]
+
+
+class CategoryDetailsResponse(BaseModel):
+    status: str
+    message: str
+    data: CategoryResponse

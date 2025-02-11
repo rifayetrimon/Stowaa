@@ -1,104 +1,121 @@
-from datetime import datetime
-from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
+from sqlalchemy import and_
 from fastapi import HTTPException, status
 from app.models.category import Category
-from app.schemas.category import CategoryCreate, CategoryUpdate, CategoryResponse
-from app.services.redis_service import redis_service
+from app.models.user import User
+from app.schemas.category import CategoryCreate, CategoryUpdate
+from sqlalchemy.ext.asyncio import AsyncSession
 
-# Cache keys
-def get_cache_key_category_list(user_id: int):
-    return f"user:{user_id}:categories"
 
-def get_cache_key_category(category_id: int):
-    return f"category:{category_id}"
 
-# Get all categories with caching
-async def get_categories(db: AsyncSession, user_id: int):
-    cache_key = get_cache_key_category_list(user_id)
-    cached_categories = await redis_service.get(cache_key)
+class CategoryService:
+    @staticmethod
+    async def _verify_user_authorization(user: User):
+        if user.role.value not in ["admin", "seller"]:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="You are not authorized to perform this action"
+            )
 
-    if cached_categories:
-        return cached_categories
+    @staticmethod
+    async def create_category(db: AsyncSession, category_data: CategoryCreate, user: User):
+        await CategoryService._verify_user_authorization(user)
 
-    result = await db.execute(select(Category).where(Category.user_id == user_id))
-    categories = result.scalars().all()
-    category_responses = [CategoryResponse.model_validate(category).model_dump() for category in categories]
+        existing_category = await db.execute(
+            select(Category).where(
+                and_(
+                    Category.name == category_data.name,
+                    Category.user_id == user.id
+                )
+            )
+        )
+        if existing_category.scalar():
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Category name already exists"
+            )
 
-    await redis_service.set(cache_key, category_responses)
-    return category_responses
+        new_category = Category(
+            **category_data.model_dump(exclude={"user_id"}),
+            user_id=user.id
+        )
 
-# Get a single category with caching
-async def get_category(db: AsyncSession, user_id: int, category_id: int):
-    cache_key = get_cache_key_category(category_id)
-    cached_category = await redis_service.get(cache_key)
+        try:
+            db.add(new_category)
+            await db.commit()
+            await db.refresh(new_category)
+        except Exception as e:
+            await db.rollback()
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=str(e)
+            )
 
-    if cached_category:
-        return cached_category
+        return new_category
 
-    result = await db.execute(select(Category).where((Category.id == category_id) & (Category.user_id == user_id)))
-    category = result.scalar()
+    @staticmethod
+    async def get_categories(db: AsyncSession, user: User):
+        await CategoryService._verify_user_authorization(user)
 
-    if not category:
-        raise HTTPException(status_code=404, detail="Category not found")
+        result = await db.execute(select(Category).where(Category.user_id == user.id))
+        return result.scalars().all()
 
-    category_response = CategoryResponse.model_validate(category).model_dump()
-    await redis_service.set(cache_key, category_response)
-    return category_response
+    @staticmethod
+    async def get_category(db: AsyncSession, category_id: int, user: User):
+        await CategoryService._verify_user_authorization(user)
 
-# Create a new category
-async def create_category(db: AsyncSession, user_id: int, category_in: CategoryCreate):
-    existing_category = await db.execute(select(Category).where(Category.name == category_in.name, Category.user_id == user_id))
-    if existing_category.scalar():
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Category name already exists")
+        result = await db.execute(
+            select(Category).where(
+                and_(
+                    Category.id == category_id,
+                    Category.user_id == user.id
+                )
+            )
+        )
+        category = result.scalar()
+        if not category:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Category not found"
+            )
+        return category
 
-    new_category = Category(**category_in.model_dump(exclude_unset=True), user_id=user_id)
-    try:
-        db.add(new_category)
-        await db.commit()
-        await db.refresh(new_category)
-        await redis_service.delete(get_cache_key_category_list(user_id))
-        return CategoryResponse.model_validate(new_category)
-    except Exception as e:
-        await db.rollback()
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+    async def update_category(db: AsyncSession, category_id: int, category_data: CategoryUpdate, user: User):
+        await CategoryService._verify_user_authorization(user)
 
-# Update an existing category
-async def update_category(db: AsyncSession, user_id: int, category_id: int, category_in: CategoryUpdate):
-    result = await db.execute(select(Category).where((Category.id == category_id) & (Category.user_id == user_id)))
-    category = result.scalar()
-    
-    if not category:
-        raise HTTPException(status_code=404, detail="Category not found")
-    
-    for key, value in category_in.model_dump(exclude_unset=True).items():
-        setattr(category, key, value)
-    category.updated_at = datetime.now()
-    
-    try:
-        await db.commit()
-        await db.refresh(category)
-        await redis_service.delete(get_cache_key_category(category_id))
-        await redis_service.delete(get_cache_key_category_list(user_id))
-        return CategoryResponse.model_validate(category)
-    except Exception as e:
-        await db.rollback()
-        raise HTTPException(status_code=400, detail=str(e))
+        category = await CategoryService.get_category(db, category_id, user)
+        update_data = category_data.model_dump(exclude_unset=True)
+        
+        for key, value in update_data.items():
+            setattr(category, key, value)
 
-# Delete a category
-async def delete_category(db: AsyncSession, user_id: int, category_id: int):
-    result = await db.execute(select(Category).where((Category.id == category_id) & (Category.user_id == user_id)))
-    category = result.scalar()
+        try:
+            db.add(category)
+            await db.commit()
+            await db.refresh(category)
+        except Exception as e:
+            await db.rollback()
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=str(e)
+            )
 
-    if not category:
-        raise HTTPException(status_code=404, detail="Category not found")
+        return category
 
-    try:
-        await db.delete(category)
-        await db.commit()
-        await redis_service.delete(get_cache_key_category(category_id))
-        await redis_service.delete(get_cache_key_category_list(user_id))
-        return {"message": "Category deleted successfully!"}
-    except Exception as e:
-        await db.rollback()
-        raise HTTPException(status_code=400, detail=str(e))
+    @staticmethod
+    async def delete_category(db: AsyncSession, category_id: int, user: User):
+        await CategoryService._verify_user_authorization(user)
+
+        category = await CategoryService.get_category(db, category_id, user)
+        
+        try:
+            await db.delete(category)
+            await db.commit()
+        except Exception as e:
+            await db.rollback()
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=str(e)
+            )
+
+        return None
