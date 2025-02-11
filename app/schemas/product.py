@@ -35,14 +35,16 @@ class ProductUpdate(BaseModel):
         return str(image_url) if image_url else None
 
 
-
-# Remove status/message from ProductResponse
 class ProductResponse(ProductBase):
     id: int
     created_at: datetime
 
+    @field_serializer('created_at', 'updated_at')
+    def serialize_dates(self, dt: datetime, _info):
+        return dt.isoformat() if dt else None
+
     class Config:
-        from_attributes = True  
+        from_attributes = True
 
 class ProductListResponse(BaseModel):
     status: str

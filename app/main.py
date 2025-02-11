@@ -1,6 +1,7 @@
 from fastapi import FastAPI
 import uvicorn
 from app.api.v1 import user, product, category, cart, wishlist, order, address, review, admin
+from app.services.redis_service import redis_service
 
 
 
@@ -23,6 +24,20 @@ app.include_router(admin.router)
 @app.get("/")
 def read_root():
     return {"Hello": "World"}
+
+
+
+# Redis 
+
+@app.on_event("startup")
+async def startup_event():
+    await redis_service.connect()
+
+
+@app.on_event("shutdown")
+async def shutdown_event():
+    await redis_service.close()
+
 
 
 

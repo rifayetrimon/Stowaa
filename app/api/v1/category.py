@@ -137,27 +137,26 @@ async def update_category(category_id: int, category_update: CategoryUpdate, db:
 
 
 
-# # delete category
-# @router.delete("/{category_id}", response_model=CategoryDeleteResponse)
-# async def delete_category(category_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+# delete category
+@router.delete("/{category_id}")
+async def delete_category(category_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
 
-#     if not current_user:
-#         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="You are not authenticated!")
-#     elif current_user.role.value not in ["admin", "seller"]:  
-#         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="You are not authorized to delete a category")
+    if not current_user:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="You are not authenticated!")
+    elif current_user.role.value not in ["admin", "seller"]:  
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="You are not authorized to delete a category")
     
-#     result = await db.execute(select(Category).where(Category.id == category_id, Category.user_id == current_user.id))
-#     category = result.scalar()
+    result = await db.execute(select(Category).where(Category.id == category_id, Category.user_id == current_user.id))
+    category = result.scalar()
 
-#     if not category:
-#         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Category not found")
+    if not category:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Category not found")
     
-#     # Delete category properly
-#     await db.delete(category)  
-#     await db.commit()
+    # Delete category properly
+    await db.delete(category)  
+    await db.commit()
 
-#     return {
-#         "status": "success",
-#         "message": "Category deleted successfully"
-#     }
-
+    return {
+        "status": "success",
+        "message": "Category deleted successfully"
+    }
