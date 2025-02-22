@@ -9,7 +9,10 @@ ENV PYTHONUNBUFFERED 1
 WORKDIR /app
 
 # Install system dependencies
-RUN apt-get update && apt-get install -y --no-install-recommends gcc python3-dev
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    gcc \
+    python3-dev \
+    libpq-dev  # Add this line
 
 # Install Python dependencies
 COPY requirements.txt .
