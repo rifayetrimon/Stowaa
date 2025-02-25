@@ -2,6 +2,7 @@ from fastapi import FastAPI
 import uvicorn
 from app.api.v1 import user, product, category, cart, wishlist, order, address, review, admin
 from app.services.redis_service import redis_service
+from app.middleware.custom_middleware import add_cors_middleware
 
 
 
@@ -19,6 +20,8 @@ app.include_router(address.router)
 app.include_router(review.router)
 app.include_router(admin.router)
 
+
+add_cors_middleware(app)
 
 
 @app.get("/")
