@@ -1,5 +1,9 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.exc import SQLAlchemyError
+from pydantic import ValidationError
+import logging
+
 from app.db.session import get_db
 from app.schemas.category import (
     CategoryCreate,
@@ -14,6 +18,8 @@ from app.schemas.category import (
 from app.models.user import User
 from app.api.deps import get_current_user
 from app.services.category import CategoryService
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(
     prefix="/category",
@@ -69,11 +75,22 @@ async def update_category(
     updated_category = await CategoryService.update_category(
         db, category_id, category_update, current_user
     )
-    return CategoryUpdateResponse(
-        status="success",
-        message="Category updated successfully",
-        data=CategoryResponse.model_validate(updated_category)
-    )
+
+    logger.debug(f"Updated category: {updated_category}")
+
+    try:
+        response = CategoryUpdateResponse(
+            status="success",
+            message="Category updated successfully",
+            data=CategoryResponse.model_validate(updated_category)
+        )
+        return response
+    except ValidationError as e:
+        logger.error(f"Pydantic Validation Error: {e.json()}")
+        raise HTTPException(
+            status_code=500,
+            detail="Invalid response schema"
+        )
 
 @router.delete("/{category_id}", response_model=CategoryDeleteResponse)
 async def delete_category(

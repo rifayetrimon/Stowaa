@@ -47,4 +47,3 @@ class CategoryUpdateResponse(BaseModel):
     status: str
     message: str
     data: CategoryResponse
-    

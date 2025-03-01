@@ -1,10 +1,15 @@
 from sqlalchemy.future import select
 from sqlalchemy import and_
 from fastapi import HTTPException, status
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.exc import SQLAlchemyError
+import logging
+
 from app.models.category import Category
 from app.models.user import User
 from app.schemas.category import CategoryCreate, CategoryUpdate
-from sqlalchemy.ext.asyncio import AsyncSession
+
+logger = logging.getLogger(__name__)
 
 class CategoryService:
     @staticmethod
@@ -42,11 +47,12 @@ class CategoryService:
             db.add(new_category)
             await db.commit()
             await db.refresh(new_category)
-        except Exception as e:
+        except SQLAlchemyError as e:
             await db.rollback()
+            logger.error(f"Database error: {str(e)}")
             raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Database error: {str(e)}"
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Database error"
             )
 
         return new_category
@@ -54,10 +60,7 @@ class CategoryService:
     @staticmethod
     async def get_categories(db: AsyncSession, user: User):
         await CategoryService._verify_user_authorization(user)
-
-        result = await db.execute(
-            select(Category).where(Category.user_id == user.id)
-        )
+        result = await db.execute(select(Category).where(Category.user_id == user.id))
         return result.scalars().all()
 
     @staticmethod
@@ -80,29 +83,27 @@ class CategoryService:
             )
         return category
 
-    @staticmethod  # Added missing decorator
+    @staticmethod
     async def update_category(db: AsyncSession, category_id: int, category_data: CategoryUpdate, user: User):
         await CategoryService._verify_user_authorization(user)
 
         category = await CategoryService.get_category(db, category_id, user)
-        # Prevent user_id modification and exclude unset fields
-        update_data = category_data.model_dump(
-            exclude_unset=True,
-            exclude={"user_id"}
-        )
-        
+        update_data = category_data.model_dump(exclude_unset=True, exclude={"user_id"})
+
         for key, value in update_data.items():
             setattr(category, key, value)
 
         try:
-            # Removed redundant db.add() - object already tracked
             await db.commit()
             await db.refresh(category)
-        except Exception as e:
+            logger.debug(f"Updated category successfully: {category}")
+
+        except SQLAlchemyError as e:
             await db.rollback()
+            logger.error(f"Database Update Error: {str(e)}")
             raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Update failed: {str(e)}"
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Update failed due to database error"
             )
 
         return category
@@ -112,15 +113,14 @@ class CategoryService:
         await CategoryService._verify_user_authorization(user)
 
         category = await CategoryService.get_category(db, category_id, user)
-        
+
         try:
             await db.delete(category)
             await db.commit()
-        except Exception as e:
+        except SQLAlchemyError as e:
             await db.rollback()
+            logger.error(f"Deletion failed: {str(e)}")
             raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Deletion failed: {str(e)}"
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Deletion failed"
             )
-
-        return None
