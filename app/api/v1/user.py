@@ -147,3 +147,9 @@ async def send_promo_notification(promo: PromoNotificationSchema,db: AsyncSessio
         )
 
     return {"status": "success", "message": "Promotional notifications sent"}
+
+
+
+# logout 
+
+

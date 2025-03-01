@@ -41,3 +41,10 @@ class CategoryDetailsResponse(BaseModel):
     status: str
     message: str
     data: CategoryResponse
+
+
+class CategoryUpdateResponse(BaseModel):
+    status: str
+    message: str
+    data: CategoryResponse
+    
