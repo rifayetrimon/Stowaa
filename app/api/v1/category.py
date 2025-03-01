@@ -1,97 +1,105 @@
-from fastapi import APIRouter, Depends
-from sqlalchemy.orm import Session
+from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.exc import SQLAlchemyError
+from pydantic import ValidationError
+import logging
+
 from app.db.session import get_db
 from app.schemas.category import (
     CategoryCreate,
-    CategoryResponse,
     CategoryUpdate,
+    CategoryResponse,
     CategoryListResponse,
     CategoryCreateResponse,
-    CategoryDetailsResponse
+    CategoryDetailsResponse,
+    CategoryUpdateResponse,
+    CategoryDeleteResponse
 )
 from app.models.user import User
 from app.api.deps import get_current_user
 from app.services.category import CategoryService
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(
     prefix="/category",
     tags=["category"],
 )
 
-
 @router.post("/create", response_model=CategoryCreateResponse)
 async def create_category(
     create_category: CategoryCreate,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
     new_category = await CategoryService.create_category(db, create_category, current_user)
-    return {
-        "status": "success",
-        "message": "Category created successfully",
-        "data": CategoryResponse.model_validate(new_category)
-    }
-
+    return CategoryCreateResponse(
+        status="success",
+        message="Category created successfully",
+        data=CategoryResponse.model_validate(new_category)
+    )
 
 @router.get("/", response_model=CategoryListResponse)
 async def get_all_categories(
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
     categories = await CategoryService.get_categories(db, current_user)
-    return {
-        "status": "success",
-        "message": "Categories retrieved successfully",
-        "count": len(categories),
-        "data": [CategoryResponse.model_validate(c) for c in categories]
-    }
-
+    return CategoryListResponse(
+        status="success",
+        message="Categories retrieved successfully",
+        count=len(categories),
+        data=[CategoryResponse.model_validate(c) for c in categories]
+    )
 
 @router.get("/{category_id}", response_model=CategoryDetailsResponse)
 async def get_category(
     category_id: int,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
     category = await CategoryService.get_category(db, category_id, current_user)
-    
-    # Ensure that created_at is passed explicitly
-    return {
-        "status": "success",
-        "message": "Category created successfully",
-        "data": CategoryResponse.model_validate(category)
-    }
+    return CategoryDetailsResponse(
+        status="success",
+        message="Category retrieved successfully",
+        data=CategoryResponse.model_validate(category)
+    )
 
-
-
-@router.put("/{category_id}", response_model=CategoryResponse)
+@router.put("/{category_id}", response_model=CategoryUpdateResponse)
 async def update_category(
     category_id: int,
     category_update: CategoryUpdate,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
     updated_category = await CategoryService.update_category(
         db, category_id, category_update, current_user
     )
-    return CategoryResponse(
-        id=updated_category.id,
-        name=updated_category.name,
-        description=updated_category.description,
-        user_id=updated_category.user_id,
-        status="success",
-        message="Category updated successfully"
-    )
 
+    logger.debug(f"Updated category: {updated_category}")
 
-@router.delete("/{category_id}")
+    try:
+        response = CategoryUpdateResponse(
+            status="success",
+            message="Category updated successfully",
+            data=CategoryResponse.model_validate(updated_category)
+        )
+        return response
+    except ValidationError as e:
+        logger.error(f"Pydantic Validation Error: {e.json()}")
+        raise HTTPException(
+            status_code=500,
+            detail="Invalid response schema"
+        )
+
+@router.delete("/{category_id}", response_model=CategoryDeleteResponse)
 async def delete_category(
     category_id: int,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
     await CategoryService.delete_category(db, category_id, current_user)
-    return {
-        "status": "success",
-        "message": "Category deleted successfully"
-    }
+    return CategoryDeleteResponse(
+        status="success",
+        message="Category deleted successfully"
+    )
