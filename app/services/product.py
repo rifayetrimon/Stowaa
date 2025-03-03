@@ -56,10 +56,26 @@ async def get_product(db: AsyncSession, user_id: int, product_id: int):
 
 
 # Create a new product
-async def create_product(db: AsyncSession, user_id: int, product_in: ProductCreate):
-    new_product = Product(**product_in.model_dump(exclude_unset=True), user_id=user_id)
 
+async def create_product(db: AsyncSession, user_id: int, product_in: ProductCreate):
     try:
+        product_data = product_in.model_dump()
+        
+        # Check for duplicate SKU
+        existing_sku = await db.execute(
+            select(Product).where(Product.sku == product_data['sku'])
+        )
+        if existing_sku.scalar():
+            raise HTTPException(
+                status_code=400,
+                detail="SKU already exists"
+            )
+
+        new_product = Product(
+            **product_data,
+            user_id=user_id  # Set from parameter
+        )
+
         db.add(new_product)
         await db.commit()
         await db.refresh(new_product)
@@ -67,9 +83,13 @@ async def create_product(db: AsyncSession, user_id: int, product_in: ProductCrea
         await redis_service.delete(get_cache_key_product_list(user_id))
 
         return ProductResponse.model_validate(new_product)
+        
     except IntegrityError as e:
         await db.rollback()
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+        raise HTTPException(
+            status_code=400,
+            detail="Database integrity error: " + str(e)
+        )
 
 
 # Update an existing product
