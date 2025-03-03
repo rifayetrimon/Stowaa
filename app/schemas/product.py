@@ -13,7 +13,6 @@ class ProductBase(BaseModel):
     sku: str = Field(..., min_length=8, max_length=20, pattern=r"^[A-Z0-9-]+$")
     image_url: Optional[HttpUrl] = None
     is_active: bool = True
-    user_id: int  # Added based on model
 
 class ProductCreate(ProductBase):
     @field_validator('sku')
@@ -38,7 +37,8 @@ class ProductUpdate(BaseModel):
 
 class ProductResponse(ProductBase):
     id: int
-    updated_at: datetime  # Matches model's TIMESTAMP field
+    user_id: int  # ✅ Only in Response
+    updated_at: datetime
 
     @field_serializer('updated_at')
     def serialize_updated_at(self, dt: datetime, _info):
@@ -46,6 +46,7 @@ class ProductResponse(ProductBase):
 
     class Config:
         from_attributes = True
+
 
 class ProductListResponse(BaseModel):
     status: str
