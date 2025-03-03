@@ -11,9 +11,9 @@ class ProductBase(BaseModel):
     category_id: int = Field(..., gt=0)
     stock_quantity: int = Field(..., ge=0)
     sku: str = Field(..., min_length=8, max_length=20, pattern=r"^[A-Z0-9-]+$")
-    image_url: str = Optional[HttpUrl]
+    image_url: Optional[HttpUrl] = None
     is_active: bool = True
-    updated_at: datetime = None 
+    user_id: int  # Added based on model
 
 class ProductCreate(ProductBase):
     @field_validator('sku')
@@ -21,6 +21,7 @@ class ProductCreate(ProductBase):
         if ' ' in v:
             raise ValueError("SKU cannot contain spaces")
         return v.upper()
+
 
 class ProductUpdate(BaseModel):
     name: Optional[str] = Field(None, min_length=2, max_length=100)
@@ -37,11 +38,11 @@ class ProductUpdate(BaseModel):
 
 class ProductResponse(ProductBase):
     id: int
-    created_at: datetime
+    updated_at: datetime  # Matches model's TIMESTAMP field
 
-    @field_serializer('created_at', 'updated_at')
-    def serialize_dates(self, dt: datetime, _info):
-        return dt.isoformat() if dt else None
+    @field_serializer('updated_at')
+    def serialize_updated_at(self, dt: datetime, _info):
+        return dt.isoformat()
 
     class Config:
         from_attributes = True

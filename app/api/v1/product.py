@@ -36,13 +36,15 @@ async def add_product(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    if not current_user:
-        raise HTTPException(status_code=401, detail="Unauthorized")
-    elif current_user.role.value not in ["admin", "seller"]:
-        raise HTTPException(status_code=403, detail="Not authorized to create a product")
+    if current_user.role.value not in ["admin", "seller"]:
+        raise HTTPException(status_code=403, detail="Not authorized")
 
     product = await create_product(db, current_user.id, product_in)
-    return {"status": "success", "message": "Product created successfully", "data": product}
+    return ProductCreateResponse(
+        status="success",
+        message="Product created successfully",
+        data=product
+    )
 
 
 @router.put("/{product_id}", response_model=ProductResponse)
