@@ -13,14 +13,23 @@ class ProductBase(BaseModel):
     image_url: Optional[HttpUrl] = None
     is_active: bool = True
 
+    @field_serializer('image_url')
+    def serialize_image_url(self, image_url: Optional[HttpUrl], _info):
+        return str(image_url) if image_url else None
+    
 
 class ProductCreate(ProductBase):
     @field_validator('sku')
     def validate_sku(cls, v):
-        v = v.upper()
+        v = v.upper().strip()
         if ' ' in v:
             raise ValueError("SKU cannot contain spaces")
         return v
+
+    # Add this new validator for image_url
+    @field_validator('image_url', mode='before')
+    def validate_image_url(cls, v):
+        return str(v) if v else None
 
 
 class ProductUpdate(BaseModel):

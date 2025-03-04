@@ -1,124 +1,147 @@
-from datetime import datetime
-from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
-from sqlalchemy.exc import IntegrityError
+from sqlalchemy import and_
 from fastapi import HTTPException, status
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.exc import SQLAlchemyError
+import logging
 from app.models.product import Product
-from app.schemas.product import ProductCreate, ProductUpdate, ProductResponse
-from app.services.redis_service import redis_service
+from app.models.user import User
+from app.schemas.product import ProductCreate, ProductUpdate
 
 
-def get_cache_key_product_list(user_id: int):
-    return f"user:{user_id}:products"
 
-def get_cache_key_product(product_id: int):
-    return f"product:{product_id}"
+logger = logging.getLogger(__name__)
 
 
-async def get_products(db: AsyncSession, user_id: int):
-    cache_key = get_cache_key_product_list(user_id)
-    cached_products = await redis_service.get(cache_key)
+class ProductService:
+    
+    @staticmethod
+    async def _verify_user_authorization(user: User):
+        if user.role.value not in ["admin", "seller"]:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="You are not authorized to perform this action"
+            )
+    
 
-    if cached_products:
-        return cached_products
+    # Update all service methods to accept User object instead of user ID
+    @staticmethod
+    async def create_product(db: AsyncSession, product_data: ProductCreate, user: User):
+        await ProductService._verify_user_authorization(user)
 
-    result = await db.execute(select(Product).where(Product.user_id == user_id))
-    products = result.scalars().all()
-
-    product_responses = [ProductResponse.model_validate(product).model_dump() for product in products]
-
-    await redis_service.set(cache_key, product_responses)
-    return product_responses
-
-
-async def get_product(db: AsyncSession, user_id: int, product_id: int):
-    cache_key = get_cache_key_product(product_id)
-    cached_product = await redis_service.get(cache_key)
-
-    if cached_product:
-        return cached_product
-
-    product = await db.execute(select(Product).where(
-        (Product.id == product_id) & (Product.user_id == user_id)
-    ))
-    product = product.scalar()
-
-    if not product:
-        raise HTTPException(status_code=404, detail="Product not found")
-
-    product_response = ProductResponse.model_validate(product).model_dump()
-
-    await redis_service.set(cache_key, product_response)
-    return product_response
-
-
-async def create_product(db: AsyncSession, user_id: int, product_in: ProductCreate):
-    try:
-        product_data = product_in.model_dump()
-
-        existing_product = await db.execute(select(Product).where(Product.sku == product_data['sku']))
+        # Check for existing SKU
+        existing_product = await db.execute(
+            select(Product).where(Product.sku == product_data.sku)
+        )
         if existing_product.scalar():
-            raise HTTPException(status_code=400, detail="SKU already exists")
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="SKU already exists"
+            )
 
-        new_product = Product(**product_data, user_id=user_id)
+        new_product = Product(
+            **product_data.model_dump(exclude={"user_id"}),
+            user_id=user.id
+        )
 
-        db.add(new_product)
-        await db.commit()
-        await db.refresh(new_product)
+        try:
+            db.add(new_product)
+            await db.commit()
+            await db.refresh(new_product)
+            return new_product
+        except SQLAlchemyError as e:
+            await db.rollback()
+            logger.error(f"Database error: {str(e)}")
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Database error"
+            )
 
-        await redis_service.delete(get_cache_key_product_list(user_id))
+    @staticmethod
+    async def get_products(db: AsyncSession, user: User):
+        await ProductService._verify_user_authorization(user)
+        result = await db.execute(
+            select(Product).where(Product.user_id == user.id)
+        )
+        return result.scalars().all()
 
-        return ProductResponse.model_validate(new_product)
+    @staticmethod
+    async def get_product(db: AsyncSession, product_id: int, user: User):
+        await ProductService._verify_user_authorization(user)
 
-    except IntegrityError as e:
-        await db.rollback()
-        raise HTTPException(status_code=400, detail="Database integrity error: " + str(e))
+        result = await db.execute(
+            select(Product).where(
+                and_(
+                    Product.id == product_id,
+                    Product.user_id == user.id
+                )
+            )
+        )
+        product = result.scalar()
+        if not product:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Product not found"
+            )
+        return product
 
+    @staticmethod
+    async def update_product(
+        db: AsyncSession, 
+        product_id: int,  # Correct position
+        product_data: ProductUpdate, 
+        user: User
+    ):
+        await ProductService._verify_user_authorization(user)
 
-async def update_product(db: AsyncSession, user_id: int, product_id: int, product_in: ProductUpdate):
-    product = await db.execute(select(Product).where(
-        (Product.id == product_id) & (Product.user_id == user_id)
-    ))
-    product = product.scalar()
+        product = await ProductService.get_product(db, product_id, user)
+        update_data = product_data.model_dump(exclude_unset=True)
 
-    if not product:
-        raise HTTPException(status_code=404, detail="Product not found")
+        # SKU uniqueness check
+        if 'sku' in update_data:
+            existing = await db.execute(
+                select(Product).where(
+                    and_(
+                        Product.sku == update_data['sku'],
+                        Product.id != product_id
+                    )
+                )
+            )
+            if existing.scalar():
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="SKU already exists"
+                )
 
-    try:
-        update_data = product_in.model_dump(exclude_unset=True)
+        # Update fields
         for key, value in update_data.items():
             setattr(product, key, value)
 
-        product.updated_at = datetime.now()
-        await db.commit()
-        await db.refresh(product)
+        try:
+            await db.commit()
+            await db.refresh(product)
+            return product
+        except SQLAlchemyError as e:
+            await db.rollback()
+            logger.error(f"Database Update Error: {str(e)}")
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Update failed due to database error"
+            )
 
-        await redis_service.delete(get_cache_key_product(product_id))
-        await redis_service.delete(get_cache_key_product_list(user_id))
+    @staticmethod
+    async def delete_product(db: AsyncSession, product_id: int, user: User):
+        await ProductService._verify_user_authorization(user)
 
-        return ProductResponse.model_validate(product)
-    except Exception as e:
-        await db.rollback()
-        raise HTTPException(status_code=400, detail=str(e))
+        product = await ProductService.get_product(db, product_id, user)
 
-
-async def delete_product(db: AsyncSession, user_id: int, product_id: int):
-    product = await db.execute(select(Product).where(
-        (Product.id == product_id) & (Product.user_id == user_id)
-    ))
-    product = product.scalar()
-
-    if not product:
-        raise HTTPException(status_code=404, detail="Product not found")
-
-    try:
-        await db.delete(product)
-        await db.commit()
-
-        await redis_service.delete(get_cache_key_product(product_id))
-        await redis_service.delete(get_cache_key_product_list(user_id))
-
-        return {"message": "Product deleted successfully!"}
-    except Exception as e:
-        await db.rollback()
-        raise HTTPException(status_code=400, detail=str(e))
+        try:
+            await db.delete(product)
+            await db.commit()
+        except SQLAlchemyError as e:
+            await db.rollback()
+            logger.error(f"Deletion failed: {str(e)}")
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Deletion failed"
+            )

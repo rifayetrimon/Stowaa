@@ -4,7 +4,6 @@ from fastapi import HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.exc import SQLAlchemyError
 import logging
-
 from app.models.category import Category
 from app.models.user import User
 from app.schemas.category import CategoryCreate, CategoryUpdate
