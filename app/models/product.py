@@ -7,7 +7,7 @@ class Product(Base):
 
     name = Column(String(255), index=True)
     description = Column(Text)
-    price = Column(Float, nullable=False)
+    price = Column(Float, nullable=False) 
     stock_quantity = Column(Integer, default=0)
     category_id = Column(Integer, ForeignKey("categories.id"))
     sku = Column(String(50), unique=True)
