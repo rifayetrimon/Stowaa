@@ -6,12 +6,10 @@ from sqlalchemy.exc import SQLAlchemyError
 import logging
 from app.models.product import Product
 from app.models.user import User
-from app.schemas.product import ProductCreate, ProductUpdate
-
-
+from app.schemas.product import ProductCreate, ProductUpdate, ProductResponse
+from app.services.redis_service import redis_service
 
 logger = logging.getLogger(__name__)
-
 
 class ProductService:
     
@@ -22,9 +20,7 @@ class ProductService:
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="You are not authorized to perform this action"
             )
-    
 
-    # Update all service methods to accept User object instead of user ID
     @staticmethod
     async def create_product(db: AsyncSession, product_data: ProductCreate, user: User):
         await ProductService._verify_user_authorization(user)
@@ -48,6 +44,10 @@ class ProductService:
             db.add(new_product)
             await db.commit()
             await db.refresh(new_product)
+
+            # Invalidate cache
+            await redis_service.delete(f"user_products:{user.id}")
+
             return new_product
         except SQLAlchemyError as e:
             await db.rollback()
@@ -60,14 +60,35 @@ class ProductService:
     @staticmethod
     async def get_products(db: AsyncSession, user: User):
         await ProductService._verify_user_authorization(user)
+
+        cache_key = f"user_products:{user.id}"
+        cached_products = await redis_service.get(cache_key)
+
+        if cached_products:
+            return [ProductResponse(**product) for product in cached_products]
+
         result = await db.execute(
             select(Product).where(Product.user_id == user.id)
         )
-        return result.scalars().all()
+        products = result.scalars().all()
+
+        if not products:
+            return []
+
+        # Store in Redis
+        await redis_service.set(cache_key, products, expire=300)
+
+        return products
 
     @staticmethod
     async def get_product(db: AsyncSession, product_id: int, user: User):
         await ProductService._verify_user_authorization(user)
+
+        cache_key = f"product:{product_id}"
+        cached_product = await redis_service.get(cache_key)
+
+        if cached_product:
+            return ProductResponse(**cached_product)
 
         result = await db.execute(
             select(Product).where(
@@ -83,15 +104,14 @@ class ProductService:
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Product not found"
             )
+
+        # Cache the product
+        await redis_service.set(cache_key, product, expire=300)
+
         return product
 
     @staticmethod
-    async def update_product(
-        db: AsyncSession, 
-        product_id: int,  # Correct position
-        product_data: ProductUpdate, 
-        user: User
-    ):
+    async def update_product(db: AsyncSession, product_id: int, product_data: ProductUpdate, user: User):
         await ProductService._verify_user_authorization(user)
 
         product = await ProductService.get_product(db, product_id, user)
@@ -120,6 +140,11 @@ class ProductService:
         try:
             await db.commit()
             await db.refresh(product)
+
+            # Invalidate cache
+            await redis_service.delete(f"product:{product_id}")
+            await redis_service.delete(f"user_products:{user.id}")
+
             return product
         except SQLAlchemyError as e:
             await db.rollback()
@@ -138,6 +163,11 @@ class ProductService:
         try:
             await db.delete(product)
             await db.commit()
+
+            # Invalidate cache
+            await redis_service.delete(f"product:{product_id}")
+            await redis_service.delete(f"user_products:{user.id}")
+
         except SQLAlchemyError as e:
             await db.rollback()
             logger.error(f"Deletion failed: {str(e)}")
