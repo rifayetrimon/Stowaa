@@ -98,28 +98,32 @@ async def get_all_addresses(
     )
 
 
-# Get specific address details endpoint
-@router.get("/details/{address_id}", response_model=AddressCreateResponse)
-async def get_address_details(
-    address_id: int, 
-    db: AsyncSession = Depends(get_db), 
+# Get addresses by user_id
+@router.get("/details/{user_id}", response_model=AddressListResponse)
+async def get_addresses_by_user(
+    user_id: int,
+    db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
     if not current_user:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="You are not authenticated!")
 
-    query = select(Address).where(Address.id == address_id)
+    # Allow admins to view any user's addresses, but regular users can only view their own
+    if current_user.id != user_id and current_user.role.value != "admin":
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="You are not authorized to view these addresses")
+
+    query = select(Address).where(Address.user_id == user_id)
     result = await db.execute(query)
-    address = result.scalars().first()
+    addresses = result.scalars().all()
 
-    if not address:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Address not found")
+    if not addresses:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No addresses found for this user")
 
-    if address.user_id != current_user.id and current_user.role.value != "admin":
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="You are not authorized to view this address")
+    address_responses = [AddressResponse.model_validate(address) for address in addresses]
 
-    return AddressCreateResponse(
+    return AddressListResponse(
         status="success",
-        message="Address retrieved successfully",
-        data=AddressResponse.model_validate(address, from_attributes=True)
+        message="Addresses retrieved successfully",
+        count=len(address_responses),
+        data=address_responses
     )
