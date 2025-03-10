@@ -3,10 +3,20 @@ import uvicorn
 from app.api.v1 import user, product, category, cart, wishlist, order, address, review, admin
 from app.services.redis_service import redis_service
 from app.middleware.custom_middleware import add_cors_middleware
+from contextlib import asynccontextmanager
 
+# Redis 
 
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Startup
+    await redis_service.connect()
+    yield
+    # Shutdown
+    await redis_service.close()
 
-app = FastAPI()
+    
+app = FastAPI(lifespan=lifespan)
 
 
 # connect all router here 
@@ -30,17 +40,15 @@ def read_root():
 
 
 
-# Redis 
 
-@app.on_event("startup")
-async def startup_event():
-    await redis_service.connect()
+# @app.on_event("startup")
+# async def startup_event():
+#     await redis_service.connect()
 
 
-@app.on_event("shutdown")
-async def shutdown_event():
-    await redis_service.close()
-
+# @app.on_event("shutdown")
+# async def shutdown_event():
+#     await redis_service.close()
 
 
 
