@@ -57,28 +57,81 @@ class ProductService:
                 detail="Database error"
             )
 
-    @staticmethod
-    async def get_products(db: AsyncSession, user: User):
-        await ProductService._verify_user_authorization(user)
 
-        cache_key = f"user_products:{user.id}"
+@staticmethod
+async def get_products(db: AsyncSession, user: User):
+    await ProductService._verify_user_authorization(user)
+
+    cache_key = f"user_products:{user.id}"
+    logger.info(f"🔍 Attempting to get products for user {user.id}")
+    logger.info(f"🔑 Cache key: {cache_key}")
+
+    try:
         cached_products = await redis_service.get(cache_key)
-
         if cached_products:
+            logger.info(f"✅ Cache HIT! Found {len(cached_products)} products in Redis")
             return [ProductResponse(**product) for product in cached_products]
+        else:
+            logger.info("❌ Cache MISS! No data in Redis")
+    except Exception as e:
+        logger.error(f"⚠️ Redis get error: {str(e)}")
 
-        result = await db.execute(
-            select(Product).where(Product.user_id == user.id)
-        )
-        products = result.scalars().all()
+    # Get from database
+    logger.info("📊 Fetching from database...")
+    result = await db.execute(
+        select(Product).where(Product.user_id == user.id)
+    )
+    products = result.scalars().all()
+    
+    if not products:
+        logger.info("📭 No products found in database")
+        return []
 
-        if not products:
-            return []
+    # Convert SQLAlchemy objects to dictionaries
+    try:
+        products_data = []
+        for p in products:
+            product_dict = {
+                column.name: getattr(p, column.name) 
+                for column in p.__table__.columns
+            }
+            products_data.append(product_dict)
+        
+        logger.info(f"📦 Found {len(products_data)} products in database")
+        
+        # Try to cache in Redis
+        logger.info(f"💾 Attempting to cache {len(products_data)} products in Redis")
+        await redis_service.set(cache_key, products_data, expire=300)
+        logger.info("✅ Successfully cached in Redis")
+        
+    except Exception as e:
+        logger.error(f"⚠️ Error during caching: {str(e)}")
 
-        # Store in Redis
-        await redis_service.set(cache_key, products, expire=300)
+    return products
 
-        return products
+
+    # @staticmethod
+    # async def get_products(db: AsyncSession, user: User):
+    #     await ProductService._verify_user_authorization(user)
+
+    #     cache_key = f"user_products:{user.id}"
+    #     cached_products = await redis_service.get(cache_key)
+
+    #     if cached_products:
+    #         return [ProductResponse(**product) for product in cached_products]
+
+    #     result = await db.execute(
+    #         select(Product).where(Product.user_id == user.id)
+    #     )
+    #     products = result.scalars().all()
+
+    #     if not products:
+    #         return []
+
+    #     # Store in Redis
+    #     await redis_service.set(cache_key, products, expire=300)
+
+    #     return products
 
     @staticmethod
     async def get_product(db: AsyncSession, product_id: int, user: User):
@@ -175,3 +228,39 @@ class ProductService:
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail="Deletion failed"
             )
+
+
+
+@router.get("/redis-debug")
+async def redis_debug():
+    """Debug Redis connection and data"""
+    try:
+        # Test basic connection
+        await redis_service._ensure_connection()
+        if redis_service._redis is None:
+            return {"status": "error", "message": "Could not connect to Redis"}
+
+        # Test setting data
+        test_key = "debug_test"
+        test_data = {"test": "data"}
+        await redis_service.set(test_key, test_data, expire=60)
+
+        # Test getting data
+        retrieved_data = await redis_service.get(test_key)
+
+        # Get all keys
+        all_keys = await redis_service._redis.keys("*")
+
+        return {
+            "status": "success",
+            "connection": "active",
+            "test_write": test_data,
+            "test_read": retrieved_data,
+            "all_keys_in_redis": all_keys,
+            "redis_info": await redis_service._redis.info()
+        }
+    except Exception as e:
+        return {
+            "status": "error",
+            "message": str(e)
+        }
