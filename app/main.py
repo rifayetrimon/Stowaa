@@ -4,18 +4,29 @@ from app.api.v1 import user, product, category, cart, wishlist, order, address, 
 from app.services.redis_service import redis_service
 from app.middleware.custom_middleware import add_cors_middleware
 from contextlib import asynccontextmanager
-
+import logging
 # Redis 
+
+logger = logging.getLogger(__name__)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Startup
-    await redis_service.connect()
-    yield
-    # Shutdown
-    await redis_service.close()
-
+    try:
+        await redis_service.connect()
+    except Exception as e:
+        logger.error(f"Failed to connect to Redis: {str(e)}")
+        logger.warning("Application will continue without Redis caching")
     
+    yield
+    
+    # Shutdown
+    try:
+        await redis_service.close()
+    except Exception as e:
+        logger.error(f"Error closing Redis connection: {str(e)}")
+
+
 app = FastAPI(lifespan=lifespan)
 
 

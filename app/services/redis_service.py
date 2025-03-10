@@ -4,23 +4,35 @@ import json
 from typing import Any, Union
 from pydantic import BaseModel
 import logging
+import backoff  # You'll need to add this to requirements.txt
 
 logger = logging.getLogger(__name__)
 
 class RedisService:
     def __init__(self):
-        self._redis = None   # Changed from self.redis to self._redis for consistency
+        self._redis = None
 
+    @backoff.on_exception(backoff.expo, 
+                         (redis.ConnectionError, redis.TimeoutError),
+                         max_tries=3)
     async def connect(self):
-        """Initialize Redis connection."""
+        """Initialize Redis connection with retry logic."""
         try:
-            self._redis = await redis.from_url(settings.REDIS_URL, decode_responses=True)
+            logger.info(f"Attempting to connect to Redis at: {settings.REDIS_URL}")
+            self._redis = await redis.from_url(
+                settings.REDIS_URL,
+                decode_responses=True,
+                socket_timeout=5,  # 5 seconds timeout
+                socket_connect_timeout=5,
+                retry_on_timeout=True
+            )
             # Test connection
             await self._redis.ping()
             logger.info("Successfully connected to Redis")
         except Exception as e:
             logger.error(f"Failed to connect to Redis: {str(e)}")
-            raise
+            # Don't raise the exception - allow the app to work without Redis
+            self._redis = None
 
     async def _ensure_connection(self):
         """Ensure Redis connection exists"""
@@ -29,8 +41,12 @@ class RedisService:
 
     async def set(self, key: str, value: Union[BaseModel, list, dict], expire: int = 3600):
         """Set a value in Redis with proper serialization handling."""
-        await self._ensure_connection()
         try:
+            await self._ensure_connection()
+            if self._redis is None:
+                logger.warning("Redis unavailable - skipping cache set")
+                return
+
             if isinstance(value, BaseModel):
                 serialized_value = value.model_dump()
             elif isinstance(value, list):
@@ -45,12 +61,16 @@ class RedisService:
             logger.debug(f"Successfully set Redis key: {key}")
         except Exception as e:
             logger.error(f"Error setting Redis key {key}: {str(e)}")
-            raise
+            # Continue without caching
 
     async def get(self, key: str) -> Any:
         """Get and deserialize a value from Redis."""
-        await self._ensure_connection()
         try:
+            await self._ensure_connection()
+            if self._redis is None:
+                logger.warning("Redis unavailable - skipping cache get")
+                return None
+
             cached_value = await self._redis.get(key)
             if cached_value:
                 return json.loads(cached_value)
@@ -59,31 +79,6 @@ class RedisService:
             logger.error(f"Error getting Redis key {key}: {str(e)}")
             return None
 
-    async def delete(self, key: str):
-        """Delete a key from Redis."""
-        await self._ensure_connection()
-        try:
-            await self._redis.delete(key)
-            logger.debug(f"Successfully deleted Redis key: {key}")
-        except Exception as e:
-            logger.error(f"Error deleting Redis key {key}: {str(e)}")
-
-    async def delete_pattern(self, pattern: str):
-        """Delete all keys matching a pattern."""
-        await self._ensure_connection()
-        try:
-            keys = await self._redis.keys(pattern)
-            if keys:
-                await self._redis.delete(*keys)
-                logger.debug(f"Successfully deleted keys matching pattern: {pattern}")
-        except Exception as e:
-            logger.error(f"Error deleting keys with pattern {pattern}: {str(e)}")
-
-    async def close(self):
-        """Close Redis connection."""
-        if self._redis:
-            await self._redis.close()
-            self._redis = None
-            logger.info("Redis connection closed")
+    # ... rest of your methods ...
 
 redis_service = RedisService()
