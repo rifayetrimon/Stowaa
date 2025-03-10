@@ -7,23 +7,23 @@ from contextlib import asynccontextmanager
 import logging
 # Redis 
 
-logger = logging.getLogger(__name__)
+# logger = logging.getLogger(__name__)
 
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    # Startup
-    try:
-        await redis_service.connect()
-    except Exception as e:
-        logger.error(f"Redis connection failed after retries: {str(e)}")
-        logger.warning("Application running without Redis")
+# @asynccontextmanager
+# async def lifespan(app: FastAPI):
+#     # Startup
+#     try:
+#         await redis_service.connect()
+#     except Exception as e:
+#         logger.error(f"Redis connection failed after retries: {str(e)}")
+#         logger.warning("Application running without Redis")
 
-    yield
+#     yield
 
-    # Shutdown
-    await redis_service.close()
+#     # Shutdown
+#     await redis_service.close()
 
-app = FastAPI(lifespan=lifespan)
+app = FastAPI()
 
 
 # connect all router here 
@@ -48,14 +48,15 @@ def read_root():
 
 
 
-# @app.on_event("startup")
-# async def startup_event():
-#     await redis_service.connect()
 
-
-# @app.on_event("shutdown")
-# async def shutdown_event():
-#     await redis_service.close()
+@app.get("/test-redis")
+async def test_redis():
+    try:
+        await redis_service.set("test_key", {"message": "Hello from Render to Railway Redis!"})
+        value = await redis_service.get("test_key")
+        return {"status": "success", "redis_value": value}
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
 
 
 

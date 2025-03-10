@@ -1,31 +1,33 @@
 import redis.asyncio as redis
-from app.core.config import settings
 import json
-from typing import Any, Union
-from pydantic import BaseModel
 import logging
 import backoff
+from typing import Any, Union
+from pydantic import BaseModel
+import os
 
 logger = logging.getLogger(__name__)
 
 class RedisService:
     def __init__(self):
         self._redis = None
+        self.redis_url = os.getenv("REDIS_URL")
 
-    @backoff.on_exception(backoff.expo,
-                         (redis.ConnectionError, redis.TimeoutError),
-                         max_tries=3)
+    @backoff.on_exception(backoff.expo, (redis.ConnectionError, redis.TimeoutError), max_tries=3)
     async def connect(self):
         """Initialize Redis connection with retry logic."""
-        logger.info(f"Attempting to connect to Redis at: {settings.REDIS_URL}")
+        if not self.redis_url:
+            logger.error("REDIS_URL is not set")
+            return
+        
+        logger.info(f"Attempting to connect to Redis at: {self.redis_url}")
         self._redis = await redis.from_url(
-            settings.REDIS_URL,
+            self.redis_url,
             decode_responses=True,
             socket_timeout=5,
             socket_connect_timeout=5,
             retry_on_timeout=True
         )
-        # Test connection
         await self._redis.ping()
         logger.info("Successfully connected to Redis")
 
@@ -83,4 +85,6 @@ class RedisService:
             self._redis = None
             logger.info("Redis connection closed")
 
+# Initialize Redis Service
 redis_service = RedisService()
+
