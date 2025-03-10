@@ -25,6 +25,7 @@ class ProductService:
     async def create_product(db: AsyncSession, product_data: ProductCreate, user: User):
         await ProductService._verify_user_authorization(user)
 
+        # Check for existing SKU
         existing_product = await db.execute(
             select(Product).where(Product.sku == product_data.sku)
         )
@@ -43,7 +44,10 @@ class ProductService:
             db.add(new_product)
             await db.commit()
             await db.refresh(new_product)
+
+            # Invalidate cache
             await redis_service.delete(f"user_products:{user.id}")
+
             return new_product
         except SQLAlchemyError as e:
             await db.rollback()
@@ -71,9 +75,10 @@ class ProductService:
         if not products:
             return []
 
-        product_list = [{column.name: getattr(p, column.name) for column in p.__table__.columns} for p in products]
-        await redis_service.set(cache_key, product_list, expire=300)
-        return product_list
+        # Store in Redis
+        await redis_service.set(cache_key, products, expire=300)
+
+        return products
 
     @staticmethod
     async def get_product(db: AsyncSession, product_id: int, user: User):
@@ -83,7 +88,7 @@ class ProductService:
         cached_product = await redis_service.get(cache_key)
 
         if cached_product:
-            return cached_product
+            return ProductResponse(**cached_product)
 
         result = await db.execute(
             select(Product).where(
@@ -94,16 +99,16 @@ class ProductService:
             )
         )
         product = result.scalar()
-
         if not product:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Product not found"
             )
 
-        product_dict = {column.name: getattr(product, column.name) for column in product.__table__.columns}
-        await redis_service.set(cache_key, product_dict, expire=300)
-        return product_dict
+        # Cache the product
+        await redis_service.set(cache_key, product, expire=300)
+
+        return product
 
     @staticmethod
     async def update_product(db: AsyncSession, product_id: int, product_data: ProductUpdate, user: User):
@@ -112,6 +117,7 @@ class ProductService:
         product = await ProductService.get_product(db, product_id, user)
         update_data = product_data.model_dump(exclude_unset=True)
 
+        # SKU uniqueness check
         if 'sku' in update_data:
             existing = await db.execute(
                 select(Product).where(
@@ -127,14 +133,18 @@ class ProductService:
                     detail="SKU already exists"
                 )
 
+        # Update fields
         for key, value in update_data.items():
             setattr(product, key, value)
 
         try:
             await db.commit()
             await db.refresh(product)
+
+            # Invalidate cache
             await redis_service.delete(f"product:{product_id}")
             await redis_service.delete(f"user_products:{user.id}")
+
             return product
         except SQLAlchemyError as e:
             await db.rollback()
@@ -153,8 +163,11 @@ class ProductService:
         try:
             await db.delete(product)
             await db.commit()
+
+            # Invalidate cache
             await redis_service.delete(f"product:{product_id}")
             await redis_service.delete(f"user_products:{user.id}")
+
         except SQLAlchemyError as e:
             await db.rollback()
             logger.error(f"Deletion failed: {str(e)}")
