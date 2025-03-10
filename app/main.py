@@ -15,17 +15,13 @@ async def lifespan(app: FastAPI):
     try:
         await redis_service.connect()
     except Exception as e:
-        logger.error(f"Failed to connect to Redis: {str(e)}")
-        logger.warning("Application will continue without Redis caching")
-    
-    yield
-    
-    # Shutdown
-    try:
-        await redis_service.close()
-    except Exception as e:
-        logger.error(f"Error closing Redis connection: {str(e)}")
+        logger.error(f"Redis connection failed after retries: {str(e)}")
+        logger.warning("Application running without Redis")
 
+    yield
+
+    # Shutdown
+    await redis_service.close()
 
 app = FastAPI(lifespan=lifespan)
 
