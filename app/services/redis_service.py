@@ -4,77 +4,83 @@ import json
 from typing import Any, Union
 from pydantic import BaseModel
 import logging
-import backoff  # You'll need to add this to requirements.txt
+import backoff
 
 logger = logging.getLogger(__name__)
 
 class RedisService:
+    def __init__(self):
+        self._redis = None
+
+    @backoff.on_exception(backoff.expo,
+                         (redis.ConnectionError, redis.TimeoutError),
+                         max_tries=3)
+    async def connect(self):
+        """Initialize Redis connection with retry logic."""
+        logger.info(f"Attempting to connect to Redis at: {settings.REDIS_URL}")
+        self._redis = await redis.from_url(
+            settings.REDIS_URL,
+            decode_responses=True,
+            socket_timeout=5,
+            socket_connect_timeout=5,
+            retry_on_timeout=True
+        )
+        # Test connection
+        await self._redis.ping()
+        logger.info("Successfully connected to Redis")
+
+    async def _ensure_connection(self):
+        """Ensure Redis connection exists."""
+        if self._redis is None:
+            try:
+                await self.connect()
+            except Exception as e:
+                logger.error(f"Failed to connect to Redis: {str(e)}")
+                self._redis = None
+
     async def set(self, key: str, value: Union[BaseModel, list, dict], expire: int = 3600):
-        """Set a value in Redis with proper serialization handling."""
+        """Set a value in Redis with proper serialization."""
         try:
             await self._ensure_connection()
             if self._redis is None:
-                logger.error("❌ Redis connection not available")
+                logger.warning("Redis unavailable - skipping cache set")
                 return
 
-            # Log the data being cached
-            logger.info(f"📝 Attempting to cache data for key: {key}")
-            logger.info(f"📊 Data size: {len(str(value))} characters")
-
+            # Serialize the value
             if isinstance(value, BaseModel):
                 serialized_value = value.model_dump()
             elif isinstance(value, list):
                 serialized_value = [
-                    item.model_dump() if isinstance(item, BaseModel) else item 
+                    item.model_dump() if isinstance(item, BaseModel) else item
                     for item in value
                 ]
             else:
                 serialized_value = value
 
-            # Convert to JSON string
-            json_data = json.dumps(serialized_value)
-            logger.info(f"🔄 Serialized data size: {len(json_data)} characters")
-
-            # Set in Redis
-            await self._redis.setex(key, expire, json_data)
-            logger.info(f"✅ Successfully set key {key} in Redis")
-            
-            # Verify the data was set
-            verification = await self._redis.get(key)
-            if verification:
-                logger.info("✅ Verified data was cached correctly")
-            else:
-                logger.error("⚠️ Data was not cached properly")
-
-        except json.JSONEncodeError as e:
-            logger.error(f"⚠️ JSON serialization error: {str(e)}")
-            raise
+            await self._redis.setex(key, expire, json.dumps(serialized_value))
+            logger.debug(f"Set Redis key: {key}")
         except Exception as e:
-            logger.error(f"⚠️ Redis set error for key {key}: {str(e)}")
-            raise
+            logger.error(f"Error setting Redis key {key}: {str(e)}")
 
     async def get(self, key: str) -> Any:
         """Get and deserialize a value from Redis."""
         try:
             await self._ensure_connection()
             if self._redis is None:
-                logger.error("❌ Redis connection not available")
+                logger.warning("Redis unavailable - skipping cache get")
                 return None
 
-            logger.info(f"🔍 Attempting to get key: {key}")
             cached_value = await self._redis.get(key)
-            
-            if cached_value:
-                logger.info(f"✅ Found data for key: {key}")
-                return json.loads(cached_value)
-            
-            logger.info(f"❌ No data found for key: {key}")
-            return None
-            
+            return json.loads(cached_value) if cached_value else None
         except Exception as e:
-            logger.error(f"⚠️ Redis get error for key {key}: {str(e)}")
+            logger.error(f"Error getting Redis key {key}: {str(e)}")
             return None
 
-    # ... rest of your methods ...
+    async def close(self):
+        """Close the Redis connection."""
+        if self._redis is not None:
+            await self._redis.close()
+            self._redis = None
+            logger.info("Redis connection closed")
 
 redis_service = RedisService()
