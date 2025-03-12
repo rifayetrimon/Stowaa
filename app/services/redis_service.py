@@ -7,7 +7,7 @@ from pydantic import BaseModel
 import os
 
 logger = logging.getLogger(__name__)
-
+ 
 class RedisService:
     def __init__(self):
         self._redis = None

@@ -6,7 +6,7 @@ from sqlalchemy.exc import SQLAlchemyError
 import logging
 from app.models.category import Category
 from app.models.user import User
-from app.schemas.category import CategoryCreate, CategoryUpdate
+from app.schemas.category import CategoryCreate, CategoryUpdate, CategoryListResponse, CategoryResponse
 
 logger = logging.getLogger(__name__)
 
@@ -123,3 +123,10 @@ class CategoryService:
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail="Deletion failed"
             )
+
+
+    @staticmethod
+    async def get_all_categories(db: AsyncSession, user: User):
+        await CategoryService._verify_user_authorization(user)
+        result = await db.execute(select(Category))
+        return result.scalars().all()
