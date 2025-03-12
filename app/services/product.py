@@ -4,6 +4,7 @@ from fastapi import HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.exc import SQLAlchemyError
 import logging
+import json
 from app.models.product import Product
 from app.models.user import User
 from app.schemas.product import ProductCreate, ProductUpdate, ProductResponse
@@ -12,7 +13,7 @@ from app.services.redis_service import redis_service
 logger = logging.getLogger(__name__)
 
 class ProductService:
-    
+
     @staticmethod
     async def _verify_user_authorization(user: User):
         if user.role.value not in ["admin", "seller"]:
@@ -65,8 +66,10 @@ class ProductService:
         cached_products = await redis_service.get(cache_key)
 
         if cached_products:
-            return [ProductResponse(**product) for product in cached_products]
+            logger.info(f"✅ Cache hit: {cache_key}")
+            return [ProductResponse(**product) for product in json.loads(cached_products)]
 
+        logger.info(f"❌ Cache miss: Fetching from DB - {cache_key}")
         result = await db.execute(
             select(Product).where(Product.user_id == user.id)
         )
@@ -76,7 +79,8 @@ class ProductService:
             return []
 
         # Store in Redis
-        await redis_service.set(cache_key, products, expire=300)
+        await redis_service.set(cache_key, json.dumps([p.dict() for p in products]), expire=300)
+        logger.info(f"✅ Cached key: {cache_key}")
 
         return products
 
@@ -88,8 +92,10 @@ class ProductService:
         cached_product = await redis_service.get(cache_key)
 
         if cached_product:
-            return ProductResponse(**cached_product)
+            logger.info(f"✅ Cache hit: {cache_key}")
+            return ProductResponse(**json.loads(cached_product))
 
+        logger.info(f"❌ Cache miss: Fetching from DB - {cache_key}")
         result = await db.execute(
             select(Product).where(
                 and_(
@@ -106,7 +112,8 @@ class ProductService:
             )
 
         # Cache the product
-        await redis_service.set(cache_key, product, expire=300)
+        await redis_service.set(cache_key, json.dumps(product.dict()), expire=300)
+        logger.info(f"✅ Cached key: {cache_key}")
 
         return product
 
