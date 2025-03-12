@@ -103,3 +103,19 @@ async def delete_category(
         status="success",
         message="Category deleted successfully"
     )
+
+
+
+
+@router.get("/all", response_model=CategoryListResponse)
+async def get_all_categories_admin(
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    categories = await CategoryService.get_all_categories(db, current_user)
+    return CategoryListResponse(
+        status="success",
+        message="All categories retrieved successfully",
+        count=len(categories),
+        data=[CategoryResponse.model_validate(c) for c in categories]
+    )
