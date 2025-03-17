@@ -21,6 +21,7 @@ class ProductBase(BaseModel):
 class CategoryResponse(BaseModel):
     id: int
     name: str
+    created_at: Optional[datetime] = None 
 
 
 class ProductCreate(ProductBase):
