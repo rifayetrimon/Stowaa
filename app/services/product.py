@@ -9,8 +9,7 @@ from sqlalchemy.exc import SQLAlchemyError
 
 from app.models.product import Product
 from app.models.user import User
-from app.schemas.category import CategoryResponse
-from app.schemas.product import ProductCreate, ProductResponse, ProductUpdate
+from app.schemas.product import ProductCreate, ProductResponse, ProductUpdate, CategoryResponse
 
 logger = logging.getLogger(__name__)
 
