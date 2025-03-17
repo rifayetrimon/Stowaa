@@ -9,7 +9,7 @@ from sqlalchemy.exc import SQLAlchemyError
 
 from app.models.product import Product
 from app.models.user import User
-from app.schemas.product import ProductCreate, ProductUpdate
+from app.schemas.product import ProductCreate, ProductResponse, ProductUpdate
 
 logger = logging.getLogger(__name__)
 
@@ -25,21 +25,14 @@ class ProductService:
 
     @staticmethod
     async def create_product(db: AsyncSession, product_data: ProductCreate, user: User):
-        """Creates a new product after verifying user authorization."""
         try:
-            if user.role.value not in ["admin", "seller"]:
-                raise HTTPException(
-                    status_code=status.HTTP_403_FORBIDDEN,
-                    detail="Operation not permitted for current role"
-                )
+            await ProductService._verify_user_authorization(user)
 
-            # Check if SKU is unique for the user
+            # Check for existing SKU within the user's products
             existing = await db.execute(
-                select(Product)
-                .where(and_(
-                    Product.sku == product_data.sku,
-                    Product.user_id == user.id
-                ))
+                select(Product).where(
+                    and_(Product.sku == product_data.sku, Product.user_id == user.id)
+                )
             )
             if existing.scalar():
                 raise HTTPException(
@@ -47,35 +40,29 @@ class ProductService:
                     detail="SKU must be unique within your products"
                 )
 
-            # Create new product instance
             new_product = Product(
                 **product_data.model_dump(exclude={"user_id"}),
-                user_id=user.id,
-                updated_at=datetime.utcnow()  # Ensure updated_at has a value
+                user_id=user.id  # Assign the current user as the owner
             )
 
             db.add(new_product)
             await db.commit()
             await db.refresh(new_product)
 
-            # Explicitly convert to dict before returning
-            response_data = {
-                "id": new_product.id,
-                "name": new_product.name,
-                "description": new_product.description,
-                "price": new_product.price,
-                "category_id": new_product.category_id,
-                "stock_quantity": new_product.stock_quantity,
-                "sku": new_product.sku,
-                "image_url": str(new_product.image_url) if new_product.image_url else None,
-                "is_active": new_product.is_active,
-                "user_id": new_product.user_id,
-                "updated_at": new_product.updated_at.isoformat()
-            }
-
-            logger.info(f"Product Created: {response_data}")  # Debugging log
-
-            return response_data  # Returning a serializable dictionary
+            # Ensure proper serialization
+            return ProductResponse(
+                id=new_product.id,
+                user_id=new_product.user_id,
+                name=new_product.name,
+                description=new_product.description,
+                price=new_product.price,
+                category_id=new_product.category_id,
+                stock_quantity=new_product.stock_quantity,
+                sku=new_product.sku,
+                image_url=new_product.image_url,
+                is_active=new_product.is_active,
+                updated_at=new_product.updated_at
+            )
 
         except HTTPException:
             raise
@@ -84,7 +71,7 @@ class ProductService:
             logger.error(f"Product creation failed: {str(e)}", exc_info=True)
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="Product creation failed"
+                detail=f"Product creation failed: {str(e)}"
             )
 
 
