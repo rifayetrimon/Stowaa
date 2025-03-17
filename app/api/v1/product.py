@@ -1,168 +1,58 @@
-from sqlalchemy.future import select
-from sqlalchemy.orm import selectinload
-from sqlalchemy import and_
-from fastapi import HTTPException, status
+from fastapi import APIRouter, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.exc import SQLAlchemyError
-import logging
-import json
-
-from app.models.product import Product
+from app.db.session import get_db
+from app.schemas.product import (
+    ProductCreate,
+    ProductUpdate,
+    ProductResponse,
+    ProductListResponse,
+    ProductCreateResponse,
+    ProductDetailsResponse
+)
 from app.models.user import User
-from app.schemas.product import ProductCreate, ProductUpdate, ProductResponse
-from app.services.redis_service import redis_service
+from app.api.deps import get_current_user
+from app.services.product import ProductService
 
-logger = logging.getLogger(__name__)
+router = APIRouter(prefix="/products", tags=["products"])
 
-class ProductService:
+@router.post("/create", response_model=ProductCreateResponse)
+async def create_product(
+    create_product: ProductCreate,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Create a new product."""
+    new_product = await ProductService.create_product(db, create_product, current_user)
+    product_dict = {column.name: getattr(new_product, column.name) for column in new_product.__table__.columns}
+    return ProductCreateResponse(status="success", message="Product created successfully", data=ProductResponse.model_validate(product_dict))
 
-    @staticmethod
-    async def _verify_user_authorization(user: User):
-        if user.role.value not in ["admin", "seller"]:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="You are not authorized to perform this action"
-            )
+@router.get("/", response_model=ProductListResponse)
+async def get_all_products(
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Retrieve all products."""
+    products = await ProductService.get_products(db, current_user)
+    return ProductListResponse(status="success", message="Products retrieved successfully", count=len(products), data=products)
 
-    @staticmethod
-    async def create_product(db: AsyncSession, product_data: ProductCreate, user: User):
-        await ProductService._verify_user_authorization(user)
+@router.put("/{product_id}", response_model=ProductDetailsResponse)
+async def update_product(
+    product_id: int,
+    product_update: ProductUpdate,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Update a product"""
+    updated_product = await ProductService.update_product(db, product_id, product_update, current_user)
+    product_dict = {column.name: getattr(updated_product, column.name) for column in updated_product.__table__.columns}
+    return ProductDetailsResponse(status="success", message="Product updated successfully", data=ProductResponse.model_validate(product_dict))
 
-        # Check for existing SKU
-        existing_product = await db.execute(
-            select(Product).where(Product.sku == product_data.sku)
-        )
-        if existing_product.scalar():
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="SKU already exists"
-            )
-
-        new_product = Product(
-            **product_data.model_dump(exclude={"user_id"}),
-            user_id=user.id
-        )
-
-        try:
-            db.add(new_product)
-            await db.commit()
-            await db.refresh(new_product)
-
-            # Invalidate cache
-            await redis_service.delete(f"user_products:{user.id}")
-
-            return new_product
-        except SQLAlchemyError as e:
-            await db.rollback()
-            logger.error(f"Database error: {str(e)}", exc_info=True)
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="Database error"
-            )
-
-    @staticmethod
-    async def get_products(db: AsyncSession, user: User):
-        await ProductService._verify_user_authorization(user)
-        cache_key = f"user_products:{user.id}"
-        
-        try:
-            cached_products = await redis_service.get(cache_key)
-            if cached_products:
-                logger.info(f"✅ Cache hit: {cache_key}")
-                return [ProductResponse(**product) for product in json.loads(cached_products)]
-        except Exception as e:
-            logger.error(f"Redis error: {str(e)}")
-
-        logger.info(f"❌ Cache miss: Fetching from DB - {cache_key}")
-        try:
-            result = await db.execute(
-                select(Product)
-                .options(selectinload(Product.user))  # Load related user data
-                .where(Product.user_id == user.id)
-            )
-            products = result.scalars().all()
-
-            # ✅ Convert to dictionaries before Pydantic validation
-            product_dicts = [{c.name: getattr(p, c.name) for c in p.__table__.columns} for p in products]
-            product_responses = [ProductResponse.model_validate(p) for p in product_dicts]
-
-            # Cache the products
-            try:
-                await redis_service.set(cache_key, json.dumps(product_dicts), expire=300)
-            except Exception as e:
-                logger.error(f"Cache update failed: {str(e)}")
-            
-            return product_responses
-        except SQLAlchemyError as e:
-            logger.error(f"Database error: {str(e)}", exc_info=True)
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="Database operation failed"
-            )
-
-    @staticmethod
-    async def update_product(db: AsyncSession, product_id: int, product_data: ProductUpdate, user: User):
-        await ProductService._verify_user_authorization(user)
-
-        product = await ProductService.get_product(db, product_id, user)
-        update_data = product_data.model_dump(exclude_unset=True)
-
-        # SKU uniqueness check
-        if 'sku' in update_data:
-            existing = await db.execute(
-                select(Product).where(
-                    and_(
-                        Product.sku == update_data['sku'],
-                        Product.id != product_id
-                    )
-                )
-            )
-            if existing.scalar():
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="SKU already exists"
-                )
-
-        # Update fields
-        for key, value in update_data.items():
-            setattr(product, key, value)
-
-        try:
-            await db.commit()
-            await db.refresh(product)
-
-            # Invalidate cache
-            await redis_service.delete(f"product:{product_id}")
-            await redis_service.delete(f"user_products:{user.id}")
-
-            return product
-        except SQLAlchemyError as e:
-            await db.rollback()
-            logger.error(f"Database Update Error: {str(e)}", exc_info=True)
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="Update failed due to database error"
-            )
-
-    @staticmethod
-    async def delete_product(db: AsyncSession, product_id: int, user: User):
-        await ProductService._verify_user_authorization(user)
-
-        product = await ProductService.get_product(db, product_id, user)
-
-        try:
-            await db.delete(product)
-            await db.commit()
-
-            # Invalidate cache
-            await redis_service.delete(f"product:{product_id}")
-            await redis_service.delete(f"user_products:{user.id}")
-
-        except SQLAlchemyError as e:
-            await db.rollback()
-            logger.error(f"Deletion failed: {str(e)}", exc_info=True)
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="Deletion failed"
-            )
-
+@router.delete("/{product_id}")
+async def delete_product(
+    product_id: int,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Delete a product."""
+    await ProductService.delete_product(db, product_id, current_user)
+    return {"status": "success", "message": "Product deleted successfully"}
