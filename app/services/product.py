@@ -1,10 +1,12 @@
 from sqlalchemy.future import select
+from sqlalchemy.orm import selectinload
 from sqlalchemy import and_
 from fastapi import HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.exc import SQLAlchemyError
 import logging
 import json
+
 from app.models.product import Product
 from app.models.user import User
 from app.schemas.product import ProductCreate, ProductUpdate, ProductResponse
@@ -52,66 +54,51 @@ class ProductService:
             return new_product
         except SQLAlchemyError as e:
             await db.rollback()
-            logger.error(f"Database error: {str(e)}")
+            logger.error(f"Database error: {str(e)}", exc_info=True)
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail="Database error"
             )
 
- 
-    # all Products
-
-    # @staticmethod
-    # async def get_products(db: AsyncSession, user: User):
-    #     await ProductService._verify_user_authorization(user)
-    #     cache_key = f"user_products:{user.id}"
-        
-    #     try:
-    #         cached_products = await redis_service.get(cache_key)
-    #         if cached_products:
-    #             logger.info(f"✅ Cache hit: {cache_key}")
-    #             return [ProductResponse(**product) for product in json.loads(cached_products)]
-    #     except Exception as e:
-    #         logger.error(f"Redis error: {str(e)}")
-
-    #     logger.info(f"❌ Cache miss: Fetching from DB - {cache_key}")
-    #     try:
-    #         result = await db.execute(select(Product).where(Product.user_id == user.id))
-    #         products = result.scalars().all()
-    #         product_responses = [ProductResponse.from_orm(p) for p in products]
-            
-    #         try:
-    #             await redis_service.set(
-    #                 cache_key,
-    #                 json.dumps([p.model_dump() for p in product_responses]),
-    #                 expire=300
-    #             )
-    #         except Exception as e:
-    #             logger.error(f"Cache update failed: {str(e)}")
-            
-    #         return product_responses
-    #     except SQLAlchemyError as e:
-    #         logger.error(f"Database error: {str(e)}")
-    #         raise HTTPException(
-    #             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-    #             detail="Database operation failed"
-    #         )
-
     @staticmethod
     async def get_products(db: AsyncSession, user: User):
         await ProductService._verify_user_authorization(user)
-
+        cache_key = f"user_products:{user.id}"
+        
         try:
-            result = await db.execute(select(Product).where(Product.user_id == user.id))
+            cached_products = await redis_service.get(cache_key)
+            if cached_products:
+                logger.info(f"✅ Cache hit: {cache_key}")
+                return [ProductResponse(**product) for product in json.loads(cached_products)]
+        except Exception as e:
+            logger.error(f"Redis error: {str(e)}")
+
+        logger.info(f"❌ Cache miss: Fetching from DB - {cache_key}")
+        try:
+            result = await db.execute(
+                select(Product)
+                .options(selectinload(Product.user))  # Load related user data
+                .where(Product.user_id == user.id)
+            )
             products = result.scalars().all()
-            return [ProductResponse.model_validate(p) for p in products]
+
+            # ✅ Convert to dictionaries before Pydantic validation
+            product_dicts = [{c.name: getattr(p, c.name) for c in p.__table__.columns} for p in products]
+            product_responses = [ProductResponse.model_validate(p) for p in product_dicts]
+
+            # Cache the products
+            try:
+                await redis_service.set(cache_key, json.dumps(product_dicts), expire=300)
+            except Exception as e:
+                logger.error(f"Cache update failed: {str(e)}")
+            
+            return product_responses
         except SQLAlchemyError as e:
-            logger.error(f"Database error: {str(e)}")
+            logger.error(f"Database error: {str(e)}", exc_info=True)
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail="Database operation failed"
             )
-    
 
     @staticmethod
     async def update_product(db: AsyncSession, product_id: int, product_data: ProductUpdate, user: User):
@@ -151,7 +138,7 @@ class ProductService:
             return product
         except SQLAlchemyError as e:
             await db.rollback()
-            logger.error(f"Database Update Error: {str(e)}")
+            logger.error(f"Database Update Error: {str(e)}", exc_info=True)
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail="Update failed due to database error"
@@ -173,7 +160,7 @@ class ProductService:
 
         except SQLAlchemyError as e:
             await db.rollback()
-            logger.error(f"Deletion failed: {str(e)}")
+            logger.error(f"Deletion failed: {str(e)}", exc_info=True)
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail="Deletion failed"
