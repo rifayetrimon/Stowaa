@@ -27,22 +27,20 @@ class ProductService:
         try:
             await ProductService._verify_user_authorization(user)
 
-            # Check for existing SKU within user's products
-            existing = await db.execute(
-                select(Product)
-                .where(and_(
-                    Product.sku == product_data.sku,
-                    Product.user_id == user.id
-                ))
+            # Ensure SKU is unique within the user's products
+            existing_sku = await db.execute(
+                select(Product).where(
+                    and_(Product.sku == product_data.sku, Product.user_id == user.id)
+                )
             )
-            if existing.scalar():
+            if existing_sku.scalar():
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
                     detail="SKU must be unique within your products"
                 )
 
             new_product = Product(
-                **product_data.model_dump(exclude={"user_id"}),
+                **product_data.model_dump(exclude={"user_id"}), 
                 user_id=user.id
             )
 
@@ -65,8 +63,8 @@ class ProductService:
     async def get_products(db: AsyncSession, user: User):
         try:
             await ProductService._verify_user_authorization(user)
-            
-            query = select(Product).options(selectinload(Product.user))
+
+            query = select(Product).options(selectinload(Product.category))
             if user.role.value == "seller":
                 query = query.where(Product.user_id == user.id)
 
@@ -87,9 +85,7 @@ class ProductService:
         try:
             await ProductService._verify_user_authorization(user)
 
-            query = select(Product)\
-                .options(selectinload(Product.user))\
-                .where(Product.id == product_id)
+            query = select(Product).options(selectinload(Product.category)).where(Product.id == product_id)
             
             if user.role.value == "seller":
                 query = query.where(Product.user_id == user.id)
@@ -137,7 +133,7 @@ class ProductService:
                 setattr(product, key, value)
 
             await db.commit()
-            await db.refresh(product, ['user'])  # Explicitly reload relationships
+            await db.refresh(product, ['category'])
             return product
 
         except HTTPException:
@@ -156,6 +152,8 @@ class ProductService:
             product = await ProductService.get_product(db, product_id, user)
             await db.delete(product)
             await db.commit()
+            return {"message": "Product deleted successfully"}
+
         except HTTPException:
             raise
         except Exception as e:
