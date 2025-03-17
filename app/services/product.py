@@ -1,3 +1,4 @@
+import datetime
 import logging
 from sqlalchemy.future import select
 from sqlalchemy.orm import selectinload
@@ -24,15 +25,21 @@ class ProductService:
 
     @staticmethod
     async def create_product(db: AsyncSession, product_data: ProductCreate, user: User):
-        """Creates a new product in the database."""
+        """Creates a new product after verifying user authorization."""
         try:
-            await ProductService._verify_user_authorization(user)
-
-            # Check if SKU already exists for this user
-            existing = await db.execute(
-                select(Product).where(
-                    and_(Product.sku == product_data.sku, Product.user_id == user.id)
+            if user.role.value not in ["admin", "seller"]:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="Operation not permitted for current role"
                 )
+
+            # Check if SKU is unique for the user
+            existing = await db.execute(
+                select(Product)
+                .where(and_(
+                    Product.sku == product_data.sku,
+                    Product.user_id == user.id
+                ))
             )
             if existing.scalar():
                 raise HTTPException(
@@ -40,34 +47,44 @@ class ProductService:
                     detail="SKU must be unique within your products"
                 )
 
+            # Create new product instance
             new_product = Product(
                 **product_data.model_dump(exclude={"user_id"}),
-                user_id=user.id
+                user_id=user.id,
+                updated_at=datetime.utcnow()  # Ensure updated_at has a value
             )
 
             db.add(new_product)
             await db.commit()
-            await db.refresh(new_product)  # Ensure complete data is loaded
+            await db.refresh(new_product)
 
-            return new_product
+            # Explicitly convert to dict before returning
+            response_data = {
+                "id": new_product.id,
+                "name": new_product.name,
+                "description": new_product.description,
+                "price": new_product.price,
+                "category_id": new_product.category_id,
+                "stock_quantity": new_product.stock_quantity,
+                "sku": new_product.sku,
+                "image_url": str(new_product.image_url) if new_product.image_url else None,
+                "is_active": new_product.is_active,
+                "user_id": new_product.user_id,
+                "updated_at": new_product.updated_at.isoformat()
+            }
+
+            logger.info(f"Product Created: {response_data}")  # Debugging log
+
+            return response_data  # Returning a serializable dictionary
 
         except HTTPException:
-            raise  # Re-raise FastAPI HTTP exceptions
-
-        except SQLAlchemyError as e:
-            await db.rollback()
-            logger.error(f"Database error during product creation: {str(e)}", exc_info=True)
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="A database error occurred while creating the product"
-            )
-
+            raise
         except Exception as e:
             await db.rollback()
-            logger.error(f"Unexpected error: {str(e)}", exc_info=True)
+            logger.error(f"Product creation failed: {str(e)}", exc_info=True)
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="An unexpected error occurred while creating the product"
+                detail="Product creation failed"
             )
 
 

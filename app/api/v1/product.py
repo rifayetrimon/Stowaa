@@ -25,20 +25,16 @@ async def create_product(
     current_user: User = Depends(get_current_user)
 ):
     """API endpoint to create a new product."""
-    product = await ProductService.create_product(db, product_data, current_user)
+    product_dict = await ProductService.create_product(db, product_data, current_user)
 
-    try:
-        return ProductCreateResponse(
-            status="success",
-            message="Product successfully created",
-            data=ProductResponse.model_validate(product)
-        )
-    except Exception as e:
-        logger.error(f"Serialization Error: {str(e)}", exc_info=True)
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to serialize response"
-        )
+    # Ensure Pydantic model validation
+    product_response = ProductResponse(**product_dict)
+
+    return ProductCreateResponse(
+        status="success",
+        message="Product successfully created",
+        data=product_response
+    )
 
 
 @router.get("/", response_model=ProductListResponse)
