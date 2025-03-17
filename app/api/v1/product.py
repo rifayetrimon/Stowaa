@@ -18,7 +18,7 @@ from app.services.product import ProductService
 router = APIRouter(prefix="/products", tags=["products"])
 logger = logging.getLogger(__name__)
 
-@router.post("/", response_model=ProductCreateResponse)
+@router.post("/create", response_model=ProductCreateResponse)
 async def create_product(
     product_data: ProductCreate,
     db: AsyncSession = Depends(get_db),
