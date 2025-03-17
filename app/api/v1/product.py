@@ -13,9 +13,12 @@ from app.models.user import User
 from app.api.deps import get_current_user
 from app.services.product import ProductService
 
-router = APIRouter(prefix="/products", tags=["products"])
+router = APIRouter(
+    prefix="/products", 
+    tags=["products"]
+)
 
-@router.post("/", response_model=ProductCreateResponse)
+@router.post("/create", response_model=ProductCreateResponse)
 async def create_product(
     product_data: ProductCreate,
     db: AsyncSession = Depends(get_db),
