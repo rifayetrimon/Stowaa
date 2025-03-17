@@ -9,6 +9,7 @@ from sqlalchemy.exc import SQLAlchemyError
 
 from app.models.product import Product
 from app.models.user import User
+from app.schemas.category import CategoryResponse
 from app.schemas.product import ProductCreate, ProductResponse, ProductUpdate
 
 logger = logging.getLogger(__name__)
@@ -85,7 +86,26 @@ class ProductService:
                 query = query.where(Product.user_id == user.id)
 
             result = await db.execute(query)
-            return result.scalars().all()
+            products = result.scalars().all()
+
+            # Convert ORM models to response schemas
+            return [
+                ProductResponse(
+                    id=p.id,
+                    name=p.name,
+                    description=p.description,
+                    price=p.price,
+                    category_id=p.category_id,
+                    category=CategoryResponse(id=p.category.id, name=p.category.name) if p.category else None,
+                    stock_quantity=p.stock_quantity,
+                    sku=p.sku,
+                    image_url=str(p.image_url) if p.image_url else None,
+                    is_active=p.is_active,
+                    user_id=p.user_id,
+                    updated_at=p.updated_at
+                )
+                for p in products
+            ]
 
         except HTTPException:
             raise
