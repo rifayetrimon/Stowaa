@@ -15,28 +15,28 @@ from app.services.product import ProductService
 
 router = APIRouter(prefix="/products", tags=["products"])
 
-@router.post("/create", response_model=ProductCreateResponse)
+@router.post("/", response_model=ProductCreateResponse)
 async def create_product(
-    create_product: ProductCreate,
+    product_data: ProductCreate,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    new_product = await ProductService.create_product(db, create_product, current_user)
+    product = await ProductService.create_product(db, product_data, current_user)
     return ProductCreateResponse(
         status="success",
-        message="Product created successfully",
-        data=ProductResponse.model_validate(new_product)
+        message="Product successfully created",
+        data=ProductResponse.model_validate(product)
     )
 
 @router.get("/", response_model=ProductListResponse)
-async def get_all_products(
+async def get_products(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
     products = await ProductService.get_products(db, current_user)
     return ProductListResponse(
         status="success",
-        message="Products retrieved successfully",
+        message="Products successfully retrieved",
         count=len(products),
         data=products
     )
@@ -50,21 +50,21 @@ async def get_product(
     product = await ProductService.get_product(db, product_id, current_user)
     return ProductDetailsResponse(
         status="success",
-        message="Product retrieved successfully",
+        message="Product successfully retrieved",
         data=ProductResponse.model_validate(product)
     )
 
 @router.put("/{product_id}", response_model=ProductDetailsResponse)
 async def update_product(
     product_id: int,
-    product_update: ProductUpdate,
+    product_data: ProductUpdate,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    updated_product = await ProductService.update_product(db, product_id, product_update, current_user)
+    updated_product = await ProductService.update_product(db, product_id, product_data, current_user)
     return ProductDetailsResponse(
         status="success",
-        message="Product updated successfully",
+        message="Product successfully updated",
         data=ProductResponse.model_validate(updated_product)
     )
 
@@ -75,4 +75,4 @@ async def delete_product(
     current_user: User = Depends(get_current_user)
 ):
     await ProductService.delete_product(db, product_id, current_user)
-    return {"status": "success", "message": "Product deleted successfully"}
+    return {"status": "success", "message": "Product successfully deleted"}
