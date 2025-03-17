@@ -88,10 +88,6 @@ class ProductService:
             result = await db.execute(query)
             products = result.scalars().all()
 
-            # Debugging: Log product data
-            logger.info(f"Retrieved {len(products)} products.")
-
-            # Convert to Pydantic response format
             product_list = []
             for p in products:
                 product_list.append(ProductResponse(
@@ -100,7 +96,11 @@ class ProductService:
                     description=p.description,
                     price=p.price,
                     category_id=p.category_id,
-                    category=CategoryResponse(id=p.category.id, name=p.category.name) if p.category else None,
+                    category=CategoryResponse(
+                        id=p.category.id, 
+                        name=p.category.name, 
+                        created_at=p.category.created_at  # Ensure this exists
+                    ) if p.category else None,
                     stock_quantity=p.stock_quantity,
                     sku=p.sku,
                     image_url=str(p.image_url) if p.image_url else None,
@@ -117,8 +117,9 @@ class ProductService:
             logger.error(f"Product retrieval failed: {str(e)}", exc_info=True)
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail=f"Failed to retrieve products: {str(e)}"  # Now includes the actual error message
+                detail=f"Failed to retrieve products: {str(e)}"
             )
+
 
 
     @staticmethod
