@@ -104,7 +104,7 @@ class ProductService:
         try:
             result = await db.execute(select(Product).where(Product.user_id == user.id))
             products = result.scalars().all()
-            return [ProductResponse.from_orm(p) for p in products]
+            return [ProductResponse.model_validate(p) for p in products]
         except SQLAlchemyError as e:
             logger.error(f"Database error: {str(e)}")
             raise HTTPException(
