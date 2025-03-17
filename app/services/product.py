@@ -88,9 +88,13 @@ class ProductService:
             result = await db.execute(query)
             products = result.scalars().all()
 
-            # Convert ORM models to response schemas
-            return [
-                ProductResponse(
+            # Debugging: Log product data
+            logger.info(f"Retrieved {len(products)} products.")
+
+            # Convert to Pydantic response format
+            product_list = []
+            for p in products:
+                product_list.append(ProductResponse(
                     id=p.id,
                     name=p.name,
                     description=p.description,
@@ -103,9 +107,9 @@ class ProductService:
                     is_active=p.is_active,
                     user_id=p.user_id,
                     updated_at=p.updated_at
-                )
-                for p in products
-            ]
+                ))
+
+            return product_list
 
         except HTTPException:
             raise
@@ -113,8 +117,9 @@ class ProductService:
             logger.error(f"Product retrieval failed: {str(e)}", exc_info=True)
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="Failed to retrieve products"
+                detail=f"Failed to retrieve products: {str(e)}"  # Now includes the actual error message
             )
+
 
     @staticmethod
     async def get_product(db: AsyncSession, product_id: int, user: User):

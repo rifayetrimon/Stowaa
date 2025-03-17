@@ -46,6 +46,7 @@ async def get_products(
         data=products
     )
 
+
 @router.get("/{product_id}", response_model=ProductDetailsResponse)
 async def get_product(
     product_id: int,
