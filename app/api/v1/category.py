@@ -52,6 +52,23 @@ async def get_all_categories(
         data=[CategoryResponse.model_validate(c) for c in categories]
     )
 
+
+@router.get("/all", response_model=CategoryListResponse)
+async def get_all_categories_admin(
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)  
+):
+    categories = await CategoryService.get_all_categories(db, current_user)
+    return CategoryListResponse(
+        status="success",
+        message="All categories retrieved successfully",
+        count=len(categories),
+        data=[CategoryResponse.model_validate(c) for c in categories]
+    )
+
+
+
+
 @router.get("/{category_id}", response_model=CategoryDetailsResponse)
 async def get_category(
     category_id: int,
@@ -107,15 +124,3 @@ async def delete_category(
 
 
 
-@router.get("/all", response_model=CategoryListResponse)
-async def get_all_categories_admin(
-    db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user)
-):
-    categories = await CategoryService.get_all_categories(db, current_user)
-    return CategoryListResponse(
-        status="success",
-        message="All categories retrieved successfully",
-        count=len(categories),
-        data=[CategoryResponse.model_validate(c) for c in categories]
-    )
