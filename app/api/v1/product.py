@@ -1,5 +1,7 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
+import logging
+
 from app.db.session import get_db
 from app.schemas.product import (
     ProductCreate,
@@ -13,23 +15,31 @@ from app.models.user import User
 from app.api.deps import get_current_user
 from app.services.product import ProductService
 
-router = APIRouter(
-    prefix="/products", 
-    tags=["products"]
-)
+router = APIRouter(prefix="/products", tags=["products"])
+logger = logging.getLogger(__name__)
 
-@router.post("/create", response_model=ProductCreateResponse)
+@router.post("/", response_model=ProductCreateResponse)
 async def create_product(
     product_data: ProductCreate,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
+    """API endpoint to create a new product."""
     product = await ProductService.create_product(db, product_data, current_user)
-    return ProductCreateResponse(
-        status="success",
-        message="Product successfully created",
-        data=ProductResponse.model_validate(product)
-    )
+
+    try:
+        return ProductCreateResponse(
+            status="success",
+            message="Product successfully created",
+            data=ProductResponse.model_validate(product)
+        )
+    except Exception as e:
+        logger.error(f"Serialization Error: {str(e)}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to serialize response"
+        )
+
 
 @router.get("/", response_model=ProductListResponse)
 async def get_products(

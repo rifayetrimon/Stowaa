@@ -1,10 +1,10 @@
+import logging
 from sqlalchemy.future import select
 from sqlalchemy.orm import selectinload
 from sqlalchemy import and_
 from fastapi import HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.exc import SQLAlchemyError
-import logging
 
 from app.models.product import Product
 from app.models.user import User
@@ -24,40 +24,52 @@ class ProductService:
 
     @staticmethod
     async def create_product(db: AsyncSession, product_data: ProductCreate, user: User):
+        """Creates a new product in the database."""
         try:
             await ProductService._verify_user_authorization(user)
 
-            # Ensure SKU is unique within the user's products
-            existing_sku = await db.execute(
+            # Check if SKU already exists for this user
+            existing = await db.execute(
                 select(Product).where(
                     and_(Product.sku == product_data.sku, Product.user_id == user.id)
                 )
             )
-            if existing_sku.scalar():
+            if existing.scalar():
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
                     detail="SKU must be unique within your products"
                 )
 
             new_product = Product(
-                **product_data.model_dump(exclude={"user_id"}), 
+                **product_data.model_dump(exclude={"user_id"}),
                 user_id=user.id
             )
 
             db.add(new_product)
             await db.commit()
-            await db.refresh(new_product)
+            await db.refresh(new_product)  # Ensure complete data is loaded
+
             return new_product
 
         except HTTPException:
-            raise
-        except Exception as e:
+            raise  # Re-raise FastAPI HTTP exceptions
+
+        except SQLAlchemyError as e:
             await db.rollback()
-            logger.error(f"Product creation failed: {str(e)}", exc_info=True)
+            logger.error(f"Database error during product creation: {str(e)}", exc_info=True)
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="Product creation failed"
+                detail="A database error occurred while creating the product"
             )
+
+        except Exception as e:
+            await db.rollback()
+            logger.error(f"Unexpected error: {str(e)}", exc_info=True)
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="An unexpected error occurred while creating the product"
+            )
+
 
     @staticmethod
     async def get_products(db: AsyncSession, user: User):
