@@ -60,42 +60,58 @@ class ProductService:
 
  
     # all Products
-    
+
+    # @staticmethod
+    # async def get_products(db: AsyncSession, user: User):
+    #     await ProductService._verify_user_authorization(user)
+    #     cache_key = f"user_products:{user.id}"
+        
+    #     try:
+    #         cached_products = await redis_service.get(cache_key)
+    #         if cached_products:
+    #             logger.info(f"✅ Cache hit: {cache_key}")
+    #             return [ProductResponse(**product) for product in json.loads(cached_products)]
+    #     except Exception as e:
+    #         logger.error(f"Redis error: {str(e)}")
+
+    #     logger.info(f"❌ Cache miss: Fetching from DB - {cache_key}")
+    #     try:
+    #         result = await db.execute(select(Product).where(Product.user_id == user.id))
+    #         products = result.scalars().all()
+    #         product_responses = [ProductResponse.from_orm(p) for p in products]
+            
+    #         try:
+    #             await redis_service.set(
+    #                 cache_key,
+    #                 json.dumps([p.model_dump() for p in product_responses]),
+    #                 expire=300
+    #             )
+    #         except Exception as e:
+    #             logger.error(f"Cache update failed: {str(e)}")
+            
+    #         return product_responses
+    #     except SQLAlchemyError as e:
+    #         logger.error(f"Database error: {str(e)}")
+    #         raise HTTPException(
+    #             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+    #             detail="Database operation failed"
+    #         )
+
     @staticmethod
     async def get_products(db: AsyncSession, user: User):
         await ProductService._verify_user_authorization(user)
-        cache_key = f"user_products:{user.id}"
-        
-        try:
-            cached_products = await redis_service.get(cache_key)
-            if cached_products:
-                logger.info(f"✅ Cache hit: {cache_key}")
-                return [ProductResponse(**product) for product in json.loads(cached_products)]
-        except Exception as e:
-            logger.error(f"Redis error: {str(e)}")
 
-        logger.info(f"❌ Cache miss: Fetching from DB - {cache_key}")
         try:
             result = await db.execute(select(Product).where(Product.user_id == user.id))
             products = result.scalars().all()
-            product_responses = [ProductResponse.from_orm(p) for p in products]
-            
-            try:
-                await redis_service.set(
-                    cache_key,
-                    json.dumps([p.model_dump() for p in product_responses]),
-                    expire=300
-                )
-            except Exception as e:
-                logger.error(f"Cache update failed: {str(e)}")
-            
-            return product_responses
+            return [ProductResponse.from_orm(p) for p in products]
         except SQLAlchemyError as e:
             logger.error(f"Database error: {str(e)}")
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail="Database operation failed"
             )
+    
 
     @staticmethod
     async def update_product(db: AsyncSession, product_id: int, product_data: ProductUpdate, user: User):
