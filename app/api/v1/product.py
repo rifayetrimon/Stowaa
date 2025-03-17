@@ -18,22 +18,17 @@ from app.services.product import ProductService
 router = APIRouter(prefix="/products", tags=["products"])
 logger = logging.getLogger(__name__)
 
-@router.post("/create", response_model=ProductCreateResponse)
+router.post("/create", response_model=ProductCreateResponse)
 async def create_product(
-    product_data: ProductCreate,
+    create_product: ProductCreate,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    """API endpoint to create a new product."""
-    product_dict = await ProductService.create_product(db, product_data, current_user)
-
-    # Ensure Pydantic model validation
-    product_response = ProductResponse(**product_dict)
-
+    new_product = await ProductService.create_product(db, create_product, current_user)
     return ProductCreateResponse(
         status="success",
-        message="Product successfully created",
-        data=product_response
+        message="Product created successfully",
+        data=new_product  # No need to revalidate, already validated in service
     )
 
 
