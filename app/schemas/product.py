@@ -15,7 +15,7 @@ class ProductBase(BaseModel):
 
     @field_serializer('image_url')
     def serialize_image_url(self, image_url: Optional[HttpUrl], _info):
-        return str(image_url) if image_url else None
+        return str(image_url) if image_url else None 
     
 
 class ProductCreate(ProductBase):
