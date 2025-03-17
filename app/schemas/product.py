@@ -16,7 +16,12 @@ class ProductBase(BaseModel):
     @field_serializer('image_url')
     def serialize_image_url(self, image_url: Optional[HttpUrl], _info):
         return str(image_url) if image_url else None 
-    
+
+
+class CategoryResponse(BaseModel):
+    id: int
+    name: str
+
 
 class ProductCreate(ProductBase):
     @field_validator('sku')
@@ -49,6 +54,7 @@ class ProductResponse(ProductBase):
     id: int
     user_id: int
     updated_at: datetime
+    category: Optional[CategoryResponse]  # Add category serialization
 
     @field_serializer('updated_at')
     def serialize_updated_at(self, dt: datetime, _info):
