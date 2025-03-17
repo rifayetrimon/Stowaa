@@ -99,7 +99,7 @@ class ProductService:
                     category=CategoryResponse(
                         id=p.category.id, 
                         name=p.category.name, 
-                        created_at=p.category.created_at  # Ensure this exists
+                        created_at=getattr(p.category, 'created_at', None)  # Safe handling
                     ) if p.category else None,
                     stock_quantity=p.stock_quantity,
                     sku=p.sku,
@@ -119,6 +119,7 @@ class ProductService:
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail=f"Failed to retrieve products: {str(e)}"
             )
+
 
 
 
