@@ -65,18 +65,11 @@ async def get_all_products(
 ):
     """Retrieve all products."""
     products = await ProductService.get_products(db, current_user)
-
-    # ✅ Convert each SQLAlchemy object to a dictionary
-    product_list = [
-        {column.name: getattr(p, column.name) for column in p.__table__.columns}
-        for p in products
-    ]
-
     return ProductListResponse(
         status="success",
         message="Products retrieved successfully",
-        count=len(product_list),
-        data=[ProductResponse.model_validate(p) for p in product_list]  # ✅ Pass valid dict
+        count=len(products),
+        data=products
     )
 
 
@@ -101,30 +94,30 @@ async def update_product(
 
 
 
-@router.put("/{product_id}", response_model=ProductDetailsResponse)
-async def update_product(
-    product_id: int,
-    product_update: ProductUpdate,
-    db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user)
-):
-    """Update an existing product."""
-    updated_product = await ProductService.update_product(db, product_id, product_update, current_user)
+# @router.put("/{product_id}", response_model=ProductDetailsResponse)
+# async def update_product(
+#     product_id: int,
+#     product_update: ProductUpdate,
+#     db: AsyncSession = Depends(get_db),
+#     current_user: User = Depends(get_current_user)
+# ):
+#     """Update an existing product."""
+#     updated_product = await ProductService.update_product(db, product_id, product_update, current_user)
 
-    logger.debug(f"Updated product: {updated_product}")
+#     logger.debug(f"Updated product: {updated_product}")
 
-    try:
-        return ProductDetailsResponse(
-            status="success",
-            message="Product updated successfully",
-            data=ProductResponse.model_validate(updated_product)
-        )
-    except ValidationError as e:
-        logger.error(f"Pydantic Validation Error: {e.json()}")
-        raise HTTPException(
-            status_code=500,
-            detail="Invalid response schema"
-        )
+#     try:
+#         return ProductDetailsResponse(
+#             status="success",
+#             message="Product updated successfully",
+#             data=ProductResponse.model_validate(updated_product)
+#         )
+#     except ValidationError as e:
+#         logger.error(f"Pydantic Validation Error: {e.json()}")
+#         raise HTTPException(
+#             status_code=500,
+#             detail="Invalid response schema"
+#         )
 
 @router.delete("/{product_id}")
 async def delete_product(

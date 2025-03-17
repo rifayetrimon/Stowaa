@@ -7,6 +7,7 @@ import logging
 from app.models.category import Category
 from app.models.user import User
 from app.schemas.category import CategoryCreate, CategoryUpdate, CategoryListResponse, CategoryResponse
+from sqlalchemy.orm import selectinload
 
 logger = logging.getLogger(__name__)
 
@@ -55,12 +56,24 @@ class CategoryService:
             )
 
         return new_category
+    
 
+    @staticmethod
+    async def get_all_categories(db: AsyncSession, user: User):
+        await CategoryService._verify_user_authorization(user)
+        result = await db.execute(
+            select(Category).options(selectinload(Category.user))
+        )
+        return result.scalars().all()
+
+  
     @staticmethod
     async def get_categories(db: AsyncSession, user: User):
         await CategoryService._verify_user_authorization(user)
         result = await db.execute(select(Category).where(Category.user_id == user.id))
         return result.scalars().all()
+
+
 
     @staticmethod
     async def get_category(db: AsyncSession, category_id: int, user: User):
@@ -124,9 +137,3 @@ class CategoryService:
                 detail="Deletion failed"
             )
 
-
-    @staticmethod
-    async def get_all_categories(db: AsyncSession, user: User):
-        await CategoryService._verify_user_authorization(user)
-        result = await db.execute(select(Category))
-        return result.scalars().all()
