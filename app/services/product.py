@@ -55,26 +55,40 @@ class ProductService:
             )
 
     # all Products
+    # @staticmethod
+    # async def get_products(db: AsyncSession, user: User):
+    #     await ProductService._verify_user_authorization(user)
+        
+    #     try:
+    #         result = await db.execute(
+    #             select(Product)
+    #             .options(selectinload(Product.user))
+    #             .where(Product.user_id == user.id)
+    #         )
+    #         products = result.scalars().all()
+
+    #         product_dicts = [{c.name: getattr(p, c.name) for c in p.__table__.columns} for p in products]
+    #         return [ProductResponse.model_validate(p) for p in product_dicts]
+    #     except SQLAlchemyError as e:
+    #         logger.error(f"Database error: {str(e)}", exc_info=True)
+    #         raise HTTPException(
+    #             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+    #             detail="Database operation failed"
+            # )
+    
     @staticmethod
     async def get_products(db: AsyncSession, user: User):
         await ProductService._verify_user_authorization(user)
-        
-        try:
-            result = await db.execute(
-                select(Product)
-                .options(selectinload(Product.user))
-                .where(Product.user_id == user.id)
-            )
-            products = result.scalars().all()
 
-            product_dicts = [{c.name: getattr(p, c.name) for c in p.__table__.columns} for p in products]
-            return [ProductResponse.model_validate(p) for p in product_dicts]
-        except SQLAlchemyError as e:
-            logger.error(f"Database error: {str(e)}", exc_info=True)
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="Database operation failed"
-            )
+        result = await db.execute(
+            select(Product).where(Product.user_id == user.id)
+        )
+        products = result.scalars().all()
+        
+    
+
+
+
 
     # update_product
     @staticmethod
