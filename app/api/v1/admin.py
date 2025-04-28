@@ -1,4 +1,4 @@
-import datetime
+from datetime import datetime
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import func
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -93,10 +93,7 @@ async def change_user_role(user_id: int,request: ChangeUserRoleRequest,db: Async
 
 
 @router.get("/users/count", response_model=dict)
-async def get_users_current_year(
-    db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(deps.get_current_user)
-):
+async def get_users_current_year(db: AsyncSession = Depends(get_db), current_user: User = Depends(deps.get_current_user)):
     if current_user.role != UserRole.ADMIN:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
