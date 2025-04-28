@@ -91,12 +91,15 @@ async def change_user_role(user_id: int,request: ChangeUserRoleRequest,db: Async
 
 
 
+
 @router.get("/users/count", response_model=dict)
-async def get_users_current_year(db: AsyncSession = Depends(get_db), current_user: User = Depends(deps.get_current_user)):
-    # ✅ Ensure the current user is an admin
+async def get_users_current_year(
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(deps.get_current_user)
+):
     if current_user.role != UserRole.ADMIN:
         raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN, 
+            status_code=status.HTTP_403_FORBIDDEN,
             detail="Only admins can view user counts"
         )
 
@@ -104,18 +107,23 @@ async def get_users_current_year(db: AsyncSession = Depends(get_db), current_use
     start_of_year = datetime(current_year, 1, 1)
     end_of_year = datetime(current_year, 12, 31, 23, 59, 59)
 
-    # ✅ Query for users created this year (excluding admins, optional)
-    result = await db.execute(
-        select(func.count()).where(
+    try:
+        stmt = select(func.count()).select_from(User).where(
+            User.created_at.isnot(None),
             User.created_at >= start_of_year,
             User.created_at <= end_of_year,
-            User.role != UserRole.ADMIN  # Optional: if you want to exclude admins
+            User.role != UserRole.ADMIN
         )
-    )
-    user_count = result.scalar()
 
-    return {
-        "status": "success",
-        "message": f"Total users registered in {current_year}",
-        "total_users": user_count
-    }
+        result = await db.execute(stmt)
+        user_count = result.scalar_one()
+
+        return {
+            "status": "success",
+            "message": f"Total users registered in {current_year}",
+            "total_users": user_count
+        }
+
+    except Exception as e:
+        print(f"Error occurred: {e}")
+        raise HTTPException(status_code=500, detail=f"Internal Server Error: {str(e)}")
