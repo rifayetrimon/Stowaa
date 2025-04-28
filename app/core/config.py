@@ -13,7 +13,6 @@ class Settings(BaseSettings):
     SMTP_USERNAME: str
     SMTP_PASSWORD: str
 
-    EMAIL_FROM: str 
     EMAIL_FROM: str
 
     REDIS_URL: str
