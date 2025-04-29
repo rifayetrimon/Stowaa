@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timedelta
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import func
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -92,8 +92,12 @@ async def change_user_role(user_id: int,request: ChangeUserRoleRequest,db: Async
 
 
 
+
 @router.get("/users/count", response_model=dict)
-async def get_users_current_year(db: AsyncSession = Depends(get_db), current_user: User = Depends(deps.get_current_user)):
+async def get_users_current_year(
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(deps.get_current_user)
+):
     if current_user.role != UserRole.ADMIN:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
@@ -104,23 +108,47 @@ async def get_users_current_year(db: AsyncSession = Depends(get_db), current_use
     start_of_year = datetime(current_year, 1, 1)
     end_of_year = datetime(current_year, 12, 31, 23, 59, 59)
 
+    last_year = current_year - 1
+    start_of_last_year = datetime(last_year, 1, 1)
+    end_of_last_year = datetime(last_year, 12, 31, 23, 59, 59)
+
     try:
-        stmt = select(func.count()).select_from(User).where(
+        # Current year count
+        stmt_current = select(func.count()).select_from(User).where(
             User.created_at.isnot(None),
             User.created_at >= start_of_year,
             User.created_at <= end_of_year,
             User.role != UserRole.ADMIN
         )
+        result_current = await db.execute(stmt_current)
+        user_count_current = result_current.scalar_one()
 
-        result = await db.execute(stmt)
-        user_count = result.scalar_one()
+        # Last year count
+        stmt_last = select(func.count()).select_from(User).where(
+            User.created_at.isnot(None),
+            User.created_at >= start_of_last_year,
+            User.created_at <= end_of_last_year,
+            User.role != UserRole.ADMIN
+        )
+        result_last = await db.execute(stmt_last)
+        user_count_last = result_last.scalar_one()
+
+        # Calculate percentage change
+        if user_count_last == 0:
+            percentage_change = None
+        else:
+            change = ((user_count_current - user_count_last) / user_count_last) * 100
+            percentage_change = f"{change:+.2f}%"
 
         return {
             "status": "success",
             "message": f"Total users registered in {current_year}",
-            "total_users": user_count
+            "total_users": user_count_current,
+            "percentage_change_from_last_year": percentage_change or "N/A"
         }
 
     except Exception as e:
         print(f"Error occurred: {e}")
         raise HTTPException(status_code=500, detail=f"Internal Server Error: {str(e)}")
+
+
