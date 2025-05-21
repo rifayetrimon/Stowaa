@@ -7,11 +7,11 @@ from app.schemas.allheader import (
     BrowserCategoryCreate,
     BrowserCategoryResponse,
     BrowserCategoryUpdate,
-    BrowserCategoryList,
+    NavitemCreate,
 )
 from app.models.user import User
 from app.api.deps import get_current_user
-from app.services.allheader import BrowserCategoryService
+from app.services.allheader import BrowserCategoryService, NavitemService
 
 
 router = APIRouter(prefix="/browser-category", tags=["browser-category"])
@@ -45,3 +45,32 @@ async def update_browser_category(
 ):
     updated_category = await BrowserCategoryService.update_browser_category(db, category_id, update_category, current_user)
     return updated_category
+
+# create nav item 
+@router.post("/navitem/create", response_model=NavitemCreate)
+async def create_navitem(
+    create_navitem: NavitemCreate,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    new_navitem = await NavitemService.create_navitem(db, create_navitem, current_user)
+    return new_navitem
+
+# all nav items
+@router.get("/navitem/", response_model=list[NavitemCreate])
+async def get_navitems(
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),  
+):
+    return await NavitemService.get_navitems(db, user)
+
+# update nav item
+@router.put("/navitem/update/{navitem_id}", response_model=NavitemCreate)
+async def update_navitem(
+    navitem_id: int,
+    update_navitem: NavitemCreate,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    updated_navitem = await NavitemService.update_navitem(db, navitem_id, update_navitem, current_user)
+    return updated_navitem

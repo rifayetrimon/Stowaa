@@ -36,13 +36,11 @@ class NavitemBase(BaseModel):
     parent_id: Optional[int]
     title: str
     url: Optional[str]
-    Order: int
+    order: int
     is_active: bool
-
 
 class NavitemCreate(NavitemBase):
     pass
-
 
 class NavitemUpdate(BaseModel):
     title : Optional[str] = None
@@ -51,12 +49,11 @@ class NavitemUpdate(BaseModel):
     order : Optional[int] = None
     is_active : Optional[bool] = None
 
-
 class NavitemOut(NavitemBase):
     id: int
     children: List['NavitemOut'] = []
 
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 NavitemOut.model_rebuild()
