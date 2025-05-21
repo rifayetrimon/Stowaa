@@ -96,6 +96,7 @@ class BrowserCategoryService:
                 detail="An error occurred while updating the browser category"
             )
         
+        
 # Navitem service 
 class NavitemService:
   
