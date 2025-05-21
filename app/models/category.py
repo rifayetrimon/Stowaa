@@ -7,7 +7,7 @@ from sqlalchemy import DateTime
 class Category(Base):
     __tablename__ = 'categories'
 
-    id = Column(Integer, primary_key=True)  # <-- You need to define the id column
+    id = Column(Integer, primary_key=True)  
     name = Column(String(100), unique=True, index=True)
     description = Column(Text)
     user_id = Column(Integer, ForeignKey("users.id"), nullable=True)
