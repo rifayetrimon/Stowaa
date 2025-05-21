@@ -17,7 +17,7 @@ from app.services.allheader import BrowserCategoryService
 router = APIRouter(prefix="/browser-category", tags=["browser-category"])
 logger = logging.getLogger(__name__)
 
-
+# create BrowserCategoryCreate
 @router.post("/create", response_model=BrowserCategoryCreate)
 async def create_browser_category(
     create_category: BrowserCategoryCreate,
@@ -27,8 +27,7 @@ async def create_browser_category(
     new_category = await BrowserCategoryService.create_browser_category(db, create_category, current_user)
     return new_category
 
-
-
+# all browser categories
 @router.get("/", response_model=list[BrowserCategoryResponse])
 async def get_browser_categories(
     db: AsyncSession = Depends(get_db),
@@ -36,7 +35,7 @@ async def get_browser_categories(
 ):
     return await BrowserCategoryService.get_browser_categories(db, user)
 
-
+# update browser category
 @router.put("/update/{category_id}", response_model=BrowserCategoryResponse)
 async def update_browser_category(
     category_id: int,
