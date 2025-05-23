@@ -2,7 +2,7 @@ from datetime import datetime
 from sqlalchemy import Column, Integer, String, Boolean, DateTime, Enum
 from app.models.base import Base
 
-class BannerType(str, Enum):
+class BannerType(Enum):
     DEFAULT = "default"  # For DefaultBanners
     REGULAR = "regular"  # For regular Banners
 
